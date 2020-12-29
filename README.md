@@ -1,3 +1,7 @@
-# CMU-Projects in R
-I have worked on the following projects at Heinz College using R:
-1. Final Project for 94-842: Programming in R for Analytics: "An Analysis of the Effect of Gender, Criminal History, and Education on Income using the National Longitudinal Survey of Youth, 1997 (NLSY97)". The two files associated with this project are: CKT-FinalProject_v10.Rmd and CKT-FinalProject_v10.html
+# CMU-Projects in Python
+I have worked on the following projects at Heinz College using Python:
+1. Final Project for 90-819 "Intermediate Programming with Python". The files associated with this project are:
+   a. 
+   
+2. Project for Data for Black Lives Pittsburgh Hub (PghD4BL). I used pandas to find counties with similar populations and racial demographics to Allegheny County, based on information from the Census Bureau and the Bureau of Justice Statistics. The files associated with this project are:
+ b. 
