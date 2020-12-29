@@ -1,0 +1,2035 @@
+---
+title: "An Analysis of the Effect of Gender, Criminal History, and Education on Income using the National Longitudinal Survey of Youth, 1997 (NLSY97)"
+author: "Tobi Jegede, Kyle Soto, and Callie Lambert"
+date: 'December 14, 2020'
+output: 
+  html_document:
+    theme: paper
+    highlight: tango
+    toc: true
+    toc_depth: 4
+    fig_width: 10
+    fig_height: 6
+---
+
+### Starter Information
+#### Package loading
+
+```{r, include = FALSE, echo = FALSE}
+library(tidyverse)
+library(knitr)
+library(GGally)
+options(scipen = 4) #helps to format without scientific notation
+```
+
+```{css, echo = FALSE}
+caption {
+      color: black;
+      font-weight: bold;
+      font-size: 1.0em;
+    }
+```
+
+#### Importing the data
+
+```{r, include = FALSE, echo = FALSE}
+# Import starting data
+nlsy <- read_csv("http://www.andrew.cmu.edu/user/achoulde/94842/final_project/nlsy97/nlsy97_Nov2020.csv")
+```
+
+#### Variables present in the base data set
+
+
+```{r, include = FALSE, echo = FALSE}
+# Change column names to question name abbreviations (you will want to change these further)
+colnames(nlsy) <- c("PSTRAN_GPA.01_PSTR",
+    "INCARC_TOTNUM_XRND",
+    "INCARC_AGE_FIRST_XRND",
+    "INCARC_LENGTH_LONGEST_XRND",
+    "PUBID_1997",
+    "YSCH-36400_1997",
+    "YSCH-37000_1997",
+    "YSAQ-010_1997",
+    "YSAQ-369_1997",
+    "YEXP-300_1997",
+    "YEXP-1500_1997",
+    "YEXP-1600_1997",
+    "YEXP-1800_1997",
+    "YEXP-2000_1997",
+    "sex",
+    "KEY_BDATE_M_1997",
+    "KEY_BDATE_Y_1997",
+    "PC8-090_1997",
+    "PC8-092_1997",
+    "PC9-002_1997",
+    "PC12-024_1997",
+    "PC12-028_1997",
+    "CV_AGE_12/31/96_1997",
+    "CV_BIO_MOM_AGE_CHILD1_1997",
+    "CV_BIO_MOM_AGE_YOUTH_1997",
+    "CV_CITIZENSHIP_1997",
+    "CV_ENROLLSTAT_1997",
+    "CV_HH_NET_WORTH_P_1997",
+    "CV_YTH_REL_HH_CURRENT_1997",
+    "CV_MSA_AGE_12_1997",
+    "CV_URBAN-RURAL_AGE_12_1997",
+    "CV_SAMPLE_TYPE_1997",
+    "CV_HGC_BIO_DAD_1997",
+    "CV_HGC_BIO_MOM_1997",
+    "CV_HGC_RES_DAD_1997",
+    "CV_HGC_RES_MOM_1997",
+    "race",
+    "YSCH-6800_1998",
+    "YSCH-7300_1998",
+    "YSAQ-372B_1998",
+    "YSAQ-371_2000",
+    "YSAQ-282J_2002",
+    "YSAQ-282Q_2002",
+    "CV_HH_NET_WORTH_Y_2003",
+    "CV_BA_CREDITS.01_2004",
+    "YSAQ-000B_2004",
+    "YSAQ-373_2004",
+    "YSAQ-369_2005",
+    "CV_BIO_CHILD_HH_2007",
+    "YTEL-52~000001_2007",
+    "YTEL-52~000002_2007",
+    "YTEL-52~000003_2007",
+    "YTEL-52~000004_2007",
+    "CV_BIO_CHILD_HH_2009",
+    "CV_COLLEGE_TYPE.01_2011",
+    "CV_INCOME_FAMILY_2011",
+    "CV_HH_SIZE_2011",
+    "CV_HH_UNDER_18_2011",
+    "CV_HH_UNDER_6_2011",
+    "CV_HIGHEST_DEGREE_1112_2011",
+    "CV_BIO_CHILD_HH_2011",
+    "YSCH-3112_2011",
+    "YSAQ-000A000001_2011",
+    "YSAQ-000A000002_2011",
+    "YSAQ-000B_2011",
+    "YSAQ-360C_2011",
+    "YSAQ-364D_2011",
+    "YSAQ-371_2011",
+    "YSAQ-372CC_2011",
+    "YSAQ-373_2011",
+    "YSAQ-374_2011",
+    "YEMP_INDCODE-2002.01_2011",
+    "CV_BIO_CHILD_HH_2015",
+    "YEMP_INDCODE-2002.01_2017",
+    "YEMP_OCCODE-2002.01_2017",
+    "CV_MARSTAT_COLLAPSED_2017",
+    "YINC-1400_2017",
+    "income",
+    "YINC-1800_2017",
+    "YINC-2400_2017",
+    "YINC-2600_2017",
+    "YINC-2700_2017",
+    "CVC_YTH_REL_HH_AGE6_YCHR_XRND",
+    "CVC_SAT_MATH_SCORE_2007_XRND",
+    "CVC_SAT_VERBAL_SCORE_2007_XRND",
+    "CVC_ACT_SCORE_2007_XRND",
+    "CVC_HH_NET_WORTH_20_XRND",
+    "CVC_HH_NET_WORTH_25_XRND",
+    "CVC_ASSETS_FINANCIAL_25_XRND",
+    "CVC_ASSETS_DEBTS_20_XRND",
+    "CVC_HH_NET_WORTH_30_XRND",
+    "CVC_HOUSE_VALUE_30_XRND",
+    "CVC_HOUSE_TYPE_30_XRND",
+    "CVC_ASSETS_FINANCIAL_30_XRND",
+    "CVC_ASSETS_DEBTS_30_XRND")
+
+### Set all negative values to NA.  
+### THIS IS DONE ONLY FOR ILLUSTRATIVE PURPOSES
+### DO NOT TAKE THIS APPROACH WITHOUT CAREFUL JUSTIFICATION
+##nlsy[nlsy < 0]  <- NA
+
+```
+
+
+### Data Processing and Summarization
+
+
+#### Subsetting the Data
+
+We chose three main buckets of factors on which to analyze how income in 2017 was affected by gender in the National Longitudinal Study of Youth in 1997:
+
+  1. Demographic information (age, race, physical or emotional condition limiting work, citizenship status, urban/rural residence, number of children in the household under the age of 6, and marital status)
+
+  2. Educational background (the highest educational attainment of mother and father, and the respondent's highest degree received)
+
+  3. Criminal history (total number of incarcerations and the length of the longest period of incarceration).
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+#Subsetting the data to just the columns needed for analysis
+nlsy_subset <- nlsy %>% 
+  select("sex", 
+         "income",
+         "INCARC_TOTNUM_XRND", 
+         "INCARC_LENGTH_LONGEST_XRND", 
+         "PC9-002_1997",    
+         "CV_AGE_12/31/96_1997",
+         "CV_CITIZENSHIP_1997", 
+         "CV_URBAN-RURAL_AGE_12_1997", 
+         "CV_HGC_RES_DAD_1997",
+         "CV_HGC_RES_MOM_1997",
+         "race", 
+         "CV_HH_UNDER_6_2011", 
+         "CV_HIGHEST_DEGREE_1112_2011",
+         "CV_MARSTAT_COLLAPSED_2017") 
+
+
+
+
+# Changed the column names
+colnames(nlsy_subset) <- c("sex", 
+                           "income",
+                           "num.times.incarc",    
+                           "longest.length.incarc.months", 
+                           "condition.limiting.work", 
+                           "age.in.1997",   
+                           "citizenship", 
+                           "urban.status.age.12", 
+                           "residential.dad.highest.grade.completed",
+                           "residential.mom.highest.grade.completed",
+                           "race",
+                           "num.children.under.6",
+                           "highest.degree.earned",
+                           "marital.status"
+                            )
+
+```
+
+#### Variables Considered But Not Included
+
+The NLSY dataset offers `r ncol(nlsy)` variables for analysis. Prior to selecting a subset of variables, we considered and discussed many others.
+
+Notably, the dataset includes separate variables for educational achievements of biological parents. For this analysis, residential parents were selected to assess the impact of the respondents' home environment on future income.
+
+The dataset includes a variable that measures if the respondent is unhappy, sad, or depressed. Instead of using this variable, we chose the variable that measures if the respondent has a physical or mental condition that limits school or work. `condition.limiting.work` is an objective measure of conditions that may impact future earnings. The unhappy, sad, or depressed variable was coded as  "not true", "sometimes true" or "often true", which was a more subjective variable than the `condition.limiting.work` variable, for which respondents either gave a "yes" or "no" response to this variable. 
+
+We chose our criminal history variables, `num.times.incarc` and `longest.length.incarc.months` on the basis that we wanted  objective datapoints of a respondent's incarceration history. There is a variable in the larger dataset that examined the respondent's perception of the likelihood that they would be incarcerated by age 20. The question that generated this variable was asked when the participants were teenagers in 1997. Due to the high level of subjectivity in answering the "percent chance of incarceration" variable, we thought that `num.times.incarc` and `longest.length.incarc.months` would be better suited for our analysis.
+
+When looking for household conditions that could variably impact income between men and women, we thought that the number of children in the household could have an impact on income. We initially considered using a variable that measured the amount of biological children for each respondent. We ultimately decided to use the `num.children.under.6` variable, however, because we were interested in understanding how enhanced childcare needs for younger children had a different impact on income based on sex. Additionally, the number of biological children that a respondent had didn't necessarily mean that the child actually lived in the household. Therefore, we chose `num.children.under.6` because it provides a better snapshot of household conditions.
+
+Finally, we also considered looking at the financial assets and debt that participants held. We ultimately decided not to include these variables as they would likely be highly correlated with the income variable. In order to reduce the introduction of collinearity into our model, we chose not to include these variables. Additionally, some of the financial variables might be considered dependent outcomes as well - this was another reason for their exclusion.
+
+### Recoding the Subset of Variables
+
+#### Recoding Methodology
+
+For the categorical variables, the negative values were recoded based on how they appeared in the codebook, i.e. -4 = "Invalid Skip", etc.
+
+For the numerical variables, the negative values that corresponded to "Non-Interview", or "Invalid Skip" were recoded as "NA" because there was no useful interpretation for these values in the larger context of the variable. For some of the negative values corresponding to a "Valid Skip", these were recoded as "0". Further discussion of the recoding methodology is explained for each of the 14 variables selected for analysis.
+
+Many variables were recoded as factor variables. This was done in cases where the order of the categories mattered (e.g., `residential.dad.highest.grade.bucket`) or to select a specific baseline group.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Changed the values in the sex variable
+nlsy_subset <- nlsy_subset %>% 
+  mutate(sex = recode(sex, `1` = "Male",
+                           `2` = "Female"))
+
+
+#Recoding the condition.limiting.work variable
+nlsy_subset <- nlsy_subset %>% 
+  mutate(condition.limiting.work = recode_factor(condition.limiting.work, `0` = "No",
+                                                                   `1` = "Yes",
+                                                                  `-4` = "Valid Skip",
+                                                                  `-2` = "Don't Know",
+                                                                   `-1` = "Refused to Answer"))
+
+#Recoding the age variable to capture the age of participants in 2017, when the income variable was calculated (so age.in.2017 = age.in.1997 + 20)
+nlsy_subset <- nlsy_subset %>% 
+  mutate(age.in.2017 = age.in.1997 + 20)
+  
+#Recoded the citizenship variable
+#we changed the value to NA for Valid Skip
+nlsy_subset <- nlsy_subset %>% 
+  mutate(citizenship = recode_factor(citizenship, `1` = "U.S. Citizen",
+                                           `2` = "Unknown, not born in the U.S.",
+                                           `3` = "Unknown, birthplace unknown",
+                                           `-4` =  NA_character_))
+
+
+
+#Recoded the Urban variable
+nlsy_subset <- nlsy_subset %>% 
+  mutate(urban.status.age.12 = recode_factor(urban.status.age.12, `1` = "Urban",
+                                              `0` = "Rural",
+                                              `2` = "Unknown",
+                                             `-3` = NA_character_,
+                                             `-4` = NA_character_))
+
+# Created bucket for the residential.dad.highest.grade.completed variable
+nlsy_subset <- nlsy_subset %>% 
+  mutate(residential.dad.highest.grade.bucket =    recode_factor(residential.dad.highest.grade.completed, 
+                                    `0` = "No education",
+                                    `1` = "Some elementary school",                                                            
+                                    `2` = "Some elementary school",    
+                                    `3` = "Some elementary school",    
+                                    `4` = "Some elementary school",    
+                                    `5` = "Completed elementary school",    
+                                    `6` = "Some middle school",
+                                    `7` = "Some middle school",
+                                    `8` = "Completed middle school",
+                                    `9` = "Some high school",
+                                    `10` = "Some high school",
+                                    `11` = "Some high school",
+                                    `12` = "Completed high school",
+                                    `13` = "1-2 years of college",
+                                    `14` = "1-2 years of college",
+                                    `15` = "3-4 years of college",
+                                    `16` = "3-4 years of college",
+                                    `17` = "5-6 years of college",
+                                    `18` = "5-6 years of college",
+                                    `19` = "7 years of college",
+                                    `20` = "8 years of college or more",
+                                    `95` = "NA",
+                                    `-3` = "NA",
+                                    `-4` = "Valid Skip"))
+
+#Creted buckets for the residential.mom.highest.grade.completed variable
+nlsy_subset <- nlsy_subset %>% 
+  mutate(residential.mom.highest.grade.bucket =    recode_factor(residential.mom.highest.grade.completed, 
+                                    `0` = "No education",
+                                    `1` = "Some elementary school",                 
+                                    `2` = "Some elementary school",    
+                                    `3` = "Some elementary school",    
+                                    `4` = "Some elementary school",    
+                                    `5` = "Completed elementary school",    
+                                    `6` = "Some middle school",
+                                    `7` = "Some middle school",
+                                    `8` = "Completed middle school",
+                                    `9` = "Some high school",
+                                    `10` = "Some high school",
+                                    `11` = "Some high school",
+                                    `12` = "Completed high school",
+                                    `13` = "1-2 years of college",
+                                    `14` = "1-2 years of college",
+                                    `15` = "3-4 years of college",
+                                    `16` = "3-4 years of college",
+                                    `17` = "5-6 years of college",
+                                    `18` = "5-6 years of college",
+                                    `19` = "7 years of college",
+                                    `20` = "8 years of college or more",
+                                    `95` = "NA",
+                                    `-3` = "NA",
+                                   `-4` = "Valid Skip"))
+
+#Recoded the (numerical) residential.mom.highest.grade.completed
+nlsy_subset <- nlsy_subset %>% 
+  mutate(residential.dad.highest.grade.completed =    recode(residential.dad.highest.grade.completed, 
+                                    `95` = NA_real_,
+                                    `-3` = NA_real_,
+                                    `-4` = NA_real_))
+
+#Recoded the (numerical) residential.mom.highest.grade.completed
+nlsy_subset <- nlsy_subset %>% 
+  mutate(residential.mom.highest.grade.completed =    recode(residential.mom.highest.grade.completed, 
+                                    `95` = NA_real_,
+                                    `-3` = NA_real_,
+                                    `-4` = NA_real_))
+
+
+
+
+#changed the race variable recoding
+nlsy_subset <- nlsy_subset %>%
+  mutate(race = recode_factor(race, `4` = "Non-Black/ Non-Hispanic",
+                             `1` = "Black",
+                             `2` = "Hispanic",
+                             `3` = "Mixed Race (Non Hispanic)",
+                            ))
+
+
+
+#changed the highest.degree.earned variable with recoding
+nlsy_subset <- nlsy_subset %>% 
+  mutate(highest.degree.earned = recode_factor(highest.degree.earned,`0` = "No Degree Earned",
+                            `1` = "GED",
+                            `2` = "High School Diploma",
+                            `3` = "Associate",
+                            `4` = "Bachelors",
+                            `5` = "Masters",
+                            `6` = "PhD",
+                            `7` = "Professional Degree (DDS, JD, MD)",
+                            `-5` = "Non-Interview",
+                            `-3` = "Invalid Skip"))
+
+
+
+#recoded the "martial.status"
+nlsy_subset <- nlsy_subset %>% 
+  mutate(marital.status = recode_factor(marital.status,`0` = "Never-marrried",
+                            `1` = "Married",
+                            `2` = "Separated",
+                            `3` = "Divorced",
+                            `4` = "Widowed",
+                            `-5` = "Non-Interview",
+                            `-3` = "Invalid Skip"))
+
+
+
+                      
+```
+
+#### Processing Income Topcoding
+
+In order to do further analysis later in our project, we also created a subset of the dataset where the topcoding on the income variable was removed. The income for the minimum salary in the top 2% (149,000), which was also used as truncation for topcoding, was left in this subset as this represented a respondent's exact income rather than the average used for topcoded incomes.
+
+We also created a subset of the data that contains only the respondents with topcoded income. This group contains the "high earners" and there is some independent exploration of this group to understand how they deviate from the other respondents.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Creating a subset of the data where topcoded income values are filtered out
+nlsy_subset_notop <- nlsy_subset %>%
+  filter(income != max(income))
+
+
+```
+
+```{r, echo = FALSE}
+#Creating a subset of the data with only the topcoded values for income - the top 2% is also referred to as the "top earners"
+nlsy_subset_top <- nlsy_subset %>%
+  filter(income == max(income))
+```
+
+### Tabular & Graphical Summaries
+
+#### Main Independent Variable: Sex
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+tot.num.obvs = nrow(nlsy_subset)
+sex_summary <- nlsy_subset %>%
+  group_by(sex) %>%
+  summarize("Overall Count" = format(n(), big.mark = ","),
+            "Percentage of Total Population" = (n()/tot.num.obvs)*100,
+            .groups="keep")
+
+#sex_summary
+kable(sex_summary, digits = 2, col.names = c("Sex", "Overall Count", "Percentage of Total Population"))
+
+```
+
+From the summary data, we can see that there is a roughly equal percentage of women and men in the subset of dataset that will be used as the basis for our analysis. The dataset is `r round(sex_summary$"Percentage of Total Population"[1], digits = 1)`% female and `r round(sex_summary$"Percentage of Total Population"[2], digits = 1)`% male.
+
+#### Main Dependent (Outcome) Variable: Income
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Step 1: Removed the values that were negative for the income variable
+
+nlsy_subset$income[nlsy_subset$income < 0 ] <- NA
+nlsy_subset_notop$income[nlsy_subset_notop$income < 0 ] <- NA
+
+```
+When analyzing the income variable, we started by eliminating the negative values. This rationale was based on the fact that the value of "-5" corresponded to a "Non-Interview" which meant that 2,250 participants were not even asked this particular question, therefore it would not make sense to include these respondents in this subset of the dataset. 
+
+Additionally, the value of "-1" corresponded to a "Refusal" to answer this question, which again would not have a useful interpretation in the context of the remaining values available for this question. 
+
+A value of "-2" corresponded to "Don't Know". Respondents who provided this answer were then prompted to answer another question about their estimated income for  2017 but not all participants who were sent to the "estimated income from wages and salary in the past year" question provided a response, which again eliminated the ability to include these respondents in our income variable.The information captured from the question that generated the "income" variable and the question that generated the "estimated income" variable are also not measured with the same methodolgy. The `income` variable provides exact numbers of the income that the respondent made, while the question directly following the "total income from wages and salary in the past year" only provides responses in pre-defined intervals, with no access to the underlying values.
+
+The value of "-4" for the income variable corresponded to a "Valid Skip", although it is not clear what the criteria was that allowed a participant to skip this question. After exploring the negative values for `income` a bit further, we decided that the best course of action would be to recode the negative values for the income varible as "NA".
+
+After completing our recoding, we then did some graphical analysis of the distribution of income in the dataset.
+
+**Graphical Summary of Income**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Step 2: Summary of the Distribution of Values of the "Income" Value
+income.plot <- nlsy_subset %>% 
+  ggplot(aes(x = income)) + xlab("Income")
+
+income.plot + geom_histogram() + ylab("Frquency") + ggtitle("Distribution of Income") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+#Step 3: Summary of the Income Distribution by Sex
+#Histogram
+income.plot <- nlsy_subset %>% 
+  ggplot(aes(x = income)) + xlab("Income")
+
+income.plot + geom_histogram(aes(fill = sex)) + ylab("Frquency") + ggtitle("Distribution of Income by Gender") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Tabular Summary
+#This summary was conducted in groups of 50,000
+income_summary <- nlsy_subset %>% 
+  group_by(sex) %>% 
+  summarize(count = n(),
+            "$0 (in %)" = round((sum(income == 0, na.rm = TRUE)/count)*100, digits = 2),
+            "$1-$50,000(in %)" = round((sum((income > 0 & income < 50000), na.rm = TRUE)/count)*100, digits = 2),
+
+           "$50,000-$100,000(in %)" = round((sum((income > 50000 & income < 100000 ), na.rm = TRUE)/count)*100, digits = 2),
+           "$100,000-$149,000(in %)" = round((sum((income > 100000 & income < 149000), na.rm = TRUE)/count)*100, digits = 2), 
+            
+           ">$149,000(in %)" = round((sum((income > 149000 ), na.rm = TRUE)/count)*100, digits = 2),
+             .groups="keep")
+#income_summary
+
+kable(income_summary, caption = "Breakdown of Income by Sex", col.names = c('Sex', 'Count', '$0 (in %)', '$1-$50,000(in %)', 
+                                                                            '$50,000-$100,000(in %)', '$100,000-$149,000(in %)', 
+                                                                            '>$149,000(in %)'))
+```
+
+The income distribution between men and women appears to be roughly identical up to around $50,000. After this point, men appear to make up a larger percentage of those earning in the 50,000-100,000, 100,000-149,000, and the greater than 149,000 dollar ranges.
+
+We know that this outcome variable is topcoded for the top 2% of respondents in this dataset. So anyone who earns in the top 2% of respondents in the dataset, which corresponds to a value of $ 149,000, is assigned a value that is an average of the top 2%.
+
+To test whether or not the difference in income by sex is statistically significant, we conducted the following t-test.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#t-test to see if the difference in income by sex is statistically significant
+
+t.test(income ~ sex, data = nlsy_subset)
+  
+```
+From the results of this t-test, it appears that the difference in the mean incomes of men and women is statistically significant, at a significance level of 0.05. The p-value for this test is `r  t.test(income ~ sex, data = nlsy_subset)$p.value`.
+
+#### Analyzing the Demographic Distribution of Top Earners 
+```{r, echo = FALSE}
+#Step 4: Analysis of Top Earners
+top.earners.sex <- nlsy_subset_top %>%
+  group_by(sex) %>%
+  summarize("Count" = format(n(), big.mark = ","), .groups="keep")
+
+kable(top.earners.sex, col.names = c('Sex', 'Count'), caption = "Distribution of High-Earners by Sex")
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+top.earners.race.sex <- nlsy_subset_top %>%
+  group_by(race, sex) %>%
+  summarize("Count" = format(n(), big.mark = ","), .groups="keep")
+
+kable(top.earners.race.sex, col.names = c('Sex', 'Race', 'Count'), caption = "Distribution of High-Earners by Sex")
+
+```
+
+Of the `r nrow(nlsy_subset_top)` "high earners," only `r sum(nlsy_subset_top[["sex"]] == "Female")` were women. The remaining `r sum(nlsy_subset_top[["sex"]] == "Male")` were men, representing `r round(sum(nlsy_subset_top[["sex"]] == "Male")/nrow(nlsy_subset_top)*100, 2)`% of top earners. `r sum(nlsy_subset_top[["race"]] == "Non-Black/ Non-Hispanic")` of the `r nrow(nlsy_subset_top)` "high earners" were Non-Black/ Non-Hispanic.
+
+
+```{r, echo = FALSE}
+top.earners.degree <- nlsy_subset_top %>%
+  group_by(highest.degree.earned) %>%
+  summarize("Count" = n(), 
+            "Proportion" = round(n()/nrow(nlsy_subset_top),2),
+            .groups="keep")
+
+kable(top.earners.degree, col.names = c('Highest Degree Earned', 'Count', 'Proportion'), caption = "Distribution of High-Earners by Highest Degree Earned")
+
+#Calculating what share of degrees are held by high earners
+top.earners.portion.bach <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Bachelors")/
+                            sum(nlsy_subset[["highest.degree.earned"]] == "Bachelors")*100, 2)
+          
+ 
+top.earners.mast <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Masters")/
+                            sum(nlsy_subset[["highest.degree.earned"]] == "Masters")*100, 2)
+
+top.earners.prof <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Professional Degree (DDS, JD, MD)")/
+                            sum(nlsy_subset[["highest.degree.earned"]] == "Professional Degree (DDS, JD, MD)")*100, 2)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Creating variables for inline code
+top.earner.bach <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Bachelors")/nrow(nlsy_subset_top)*100, 2)
+
+top.earner.master <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Masters")/nrow(nlsy_subset_top)*100, 2)
+
+top.earner.prof <- round(sum(nlsy_subset_top[["highest.degree.earned"]] == "Professional Degree (DDS, JD, MD)")/nrow(nlsy_subset_top)*100, 2)
+
+
+```
+
+Of the `r nrow(nlsy_subset_top)` "high earners," `r top.earner.bach`% had a Bachelors degree, `r top.earner.master`% had a Masters degree, and `r top.earner.prof`% had a Professional degree (DDS, JD, or MD). Interestingly, none of the `r sum(nlsy_subset[["highest.degree.earned"]] == "PhD")` respondents with a PhD were in the top income group.
+
+High earners account for only `r round(nrow(nlsy_subset_top)/tot.num.obvs*100,2)`% of the dataset but they hold a disproportionate number of advanced degrees. High earners hold `r top.earners.portion.bach`% of all Bachelors degrees, `r top.earners.mast`% of all Masters degrees, and `r top.earners.prof`% of all Professional degrees.
+
+Respondents with income in the top 2% are not representative of the respondent group as a whole. It is important to better understand this group and consider its implications for the rest of the analysis. Since high earners tend to be male and more highly educated, it suggests that some linear regressions should not include this group or consider their interactions with `sex`, `race`, and `highest.degree.earned`.
+
+### Criminal History Variables
+
+#### Number of Times Incarcerated
+
+**Recoding**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#recoding variables
+#what values currently exist for the incarceration variables
+#num.times.incarc
+num_incarc_variable_coding <- table(nlsy_subset$num.times.incarc)
+kable(num_incarc_variable_coding ,col.names = c('Possible Values of num.times.incarc', 'Frequency'), caption = "Distribution of the Number of Times Participants Were Incarcerated")
+
+#There is a negative value for the number of incarcerations, which does not providea useful interpretation in the context of this dataset. Therefore, the following code eliminates these 21 observations from the dataset.
+
+nlsy_subset$num.times.incarc[nlsy_subset$num.times.incarc < 0] <- NA
+
+```
+
+The summary table displayed shows that there is a negative value for the number of incarcerations in the original dataset. The original dataset code of "-3" refers to an invalid skip, which does not provide a useful interpretation in the context of this dataset. Therefore this negative value has been replaced by an "NA" value, which eliminates 21 observations from the dataset.
+
+**Tabular Summary of the Data**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+#This provides a summary of the frequency of incarceration between men and women
+
+incarc_summary <- nlsy_subset %>% 
+  group_by(sex) %>% 
+  summarize("Overall Count" = format(n(), big.mark = ","),
+            "Median Number of Incarcerations" = median(num.times.incarc, na.rm = TRUE),
+            "Number with Criminal History" = sum(num.times.incarc > 0, na.rm = TRUE),
+            "Proportion with Criminal History" = sum(num.times.incarc > 0 , na.rm = TRUE)/n(),
+            .groups="keep")
+
+kable(incarc_summary, digits = 3, caption = "Summary of Incarceration Statistics by Sex", 
+      col.names = c("Sex", "Overall Count", "Median Number of Incarcerations", "Number with Criminal History", 
+                    "Proportion with Criminal History"))
+
+```
+
+There appears to be a marked difference in the incarceration rates of men and women in this dataset. Particularly, `r round(incarc_summary$"Proportion with Criminal History"[2], digits = 3) * 100`% of the men in the dataset have experienced incarceration, while `r round(incarc_summary$"Proportion with Criminal History"[1], digits = 3) * 100`% of the women in the dataset have experienced incarceration.
+
+While there is an overall difference in incarceration rates, the median number of incarcerations is the same for both men and women: 0. So, the majority of the male and female respondents have not been incarcerated.
+
+To analysis whether the difference in the number of times of incarcerations between men and women was statistically significant, we conducted the following t-test.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+incarc.test <- t.test( num.times.incarc ~ sex, data = nlsy_subset)
+incarc.test
+
+```
+The results of the t-test show that there is a statistically significant difference in the number of times that male and female study respondents have been incarcerated. The p-value for this t-test is `r incarc.test$p.value`, which is less than the significance level of 0.05.
+
+#### Longest Period of Incarceration
+
+**Recoding**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+#what values currently exist for the longest.length.incarc.months variable?
+
+#Changing values with -4 to 0 -- which represents that this individual was not incarcerated 
+nlsy_subset$longest.length.incarc.months[nlsy_subset$longest.length.incarc.months == -4] <- 0
+
+#Changing values with -3 to NA, because there is no useful interpretation for this coding 
+nlsy_subset$longest.length.incarc.months[nlsy_subset$longest.length.incarc.months == -3] <- NA
+
+
+```
+
+There are two negative variables that appear in the numerical variable, "longest.length.incarc.months". The first negative variable, "-4", indicates that the respondent validly skipped answering this variable. In the context of the study, this would likely mean that the 8,054 participants who gave this response were never incarcerated, meaning that the length of their longest period of incarceration would be 0 months. Therefore, we recoded the values for this variable that were equal to -4 to 0. 
+
+The second negative variable, "-3" was recoded as "NA" because this value corresponds to an "inavlid skip" in the original dataset and therefore does not have a useful interpretation relative to the other values for the variable.  
+
+
+**Graphical & Tabular Summary of the Data**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+length.incarc.summary <- nlsy_subset %>%
+  group_by(sex) %>%
+  summarize("Overall count"= format(n(), big.mark = ","),
+            "Maximum Length of Incarcerations (in months)" = max(longest.length.incarc.months, na.rm = TRUE),
+            "Maximum Length of Incarceration (in years)" = max(longest.length.incarc.months, na.rm = TRUE)/12, 
+            "Average Length of Incarceration (in months)" = mean(longest.length.incarc.months, na.rm = TRUE), .groups="keep")
+
+
+kable(length.incarc.summary, digits = 2, caption = "Summary of Incarceration Length by Sex", 
+      col.names = c("Sex", "Overall Count", "Maximum Length of Incarcerations (in months)", 
+                    "Maximum Length of Incarceration (in years)", "Average Length of Incarceration (in months)"))
+```
+
+
+``` {r, echo=FALSE, warning=FALSE, message=FALSE}
+  
+#Initially when the histogram was created including the values that are 0, it was hard to see the variation in the upper tail of the dataset. Therefore, we created a new subset of the dataset where the values that are 0 are recoded to NA just to make the historgram easier to read. This new coding is ONLY used to create this histogram. The recoding pattern for the longest.length.incarc.months variable that is outlined in the previous section will serve as the basis for all of the rest of the analysis in this project.  
+nlsy_subset_2 <- nlsy_subset
+nlsy_subset_2[nlsy_subset_2 <= 0] <- NA
+
+
+#creating a histogram  to show the frequency of various periods of incarceration
+length.incarc.plot <- nlsy_subset_2 %>% 
+  ggplot(aes(x = longest.length.incarc.months)) + xlab("Longest Period of Incarceration (in months)")
+
+length.incarc.plot + geom_histogram(aes(fill = sex)) + ylab("Count") + ggtitle("Distribution of Incarceration Length by Gender") + theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+
+The tabular and graphical summaries for the length of incarceration variable show that, not only are men more likely to have a criminal history than women in this dataset, they are also likely to spend more time in jail when they are incarcerated. The average length of time of incarceration for women is `r round(length.incarc.summary$"Average Length of Incarceration (in months)"[1], digits = 2)` months, while the average length of time of incarceration for men is `r round(length.incarc.summary$"Average Length of Incarceration (in months)"[2], digits = 2)` months.
+
+
+### Demographic Variables
+
+#### Condition Limiting Work
+
+**Recoding**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#condition.limiting.work
+
+qplot(x = condition.limiting.work, data = nlsy_subset, geom = "bar", fill=I("steel blue")) + xlab("Condition Limiting Work") + ylab("Count") + ggtitle("Distribution of Possible Responses to Condition Limiting Work") + theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+The `condition.limiting.work` variable was further recoded to change the values for which there was a "Valid Skip" to "No" because, based on the codebook, participants might not have been brought to answer this question if there was no previous indication that they might have some condition that would limit them from working. The other two categories, "Don't Know" and "Refused to Answer" were recoded as "NA", as these two categories don't have a useful interpretation in the context of the rest of the variable.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nlsy_subset$condition.limiting.work[nlsy_subset$condition.limiting.work == "Valid Skip"] <- "No"
+nlsy_subset$condition.limiting.work[nlsy_subset$condition.limiting.work == "Don't Know"] <- NA
+nlsy_subset$condition.limiting.work[nlsy_subset$condition.limiting.work == "Refused to Answer"] <- NA
+```
+
+With these adjustments to the `condition.limiting.work` variable, here is the adjusted bar graph of the breakdown in the presence of a work-limiting condition by gender: 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+condition.df <- nlsy_subset %>%
+  group_by(sex, condition.limiting.work) %>%
+  summarize(n = n(), .groups="keep")
+
+condition.df <- condition.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+condition.toplot <- condition.df %>%
+  group_by(sex, condition.limiting.work) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+condition.toplot %>%
+  ggplot(aes(x = condition.limiting.work, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position = position_dodge(0.9)) +
+  xlab("Condition Limiting Work") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  ggtitle("Distribution of Condition Limiting Work by Sex") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+condition_summary <- nlsy_subset %>% 
+  group_by(sex) %>% 
+   summarize(count = format(n(), big.mark = ","),
+            "Has a Work-Limiting Condition"= sum(condition.limiting.work == "Yes", na.rm = TRUE) ,
+            "Proportion With A Work-Limiting Condition" = sum(condition.limiting.work == "Yes", na.rm = TRUE)/n(), .groups="keep")
+
+kable(condition_summary, digits = 3, caption = "Distribution of Condition Limiting Work by Sex", 
+      col.names = c("Sex", "Count", "Has a Work-Limiting Condition", "Proportion With A Work-Limiting Condition"))
+```
+
+Both the graphical and tabular summaries show that the majority of the respondents do not have a condition limiting work. Additionally, there appears to be a roughly equal proportion of men and women with work-limiting conditions. `r round(condition_summary$"Proportion With A Work-Limiting Condition"[1]* 100, digits = 2)`% of women had a work-limiting condition, while `r round(condition_summary$"Proportion With A Work-Limiting Condition"[2]* 100, digits = 2)`% of men had a work-limiting condition. This might signal that the effect of the this variable on differences in income by gender may not be substantial.
+
+#### Age
+
+**Recoding**
+
+No recoding was required for the age variable because all respondents to the survey provided a response to the question from which this variable is generated.
+
+**Graphical & Tabular Summary**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#age
+age_summary <- nlsy_subset %>% 
+  group_by(sex) %>% 
+  summarize("Overall Count" = n(),
+            "Mean Age (in 2017)" = mean(age.in.2017))
+
+kable(age_summary, format = "markdown", digits = 2)
+
+
+```
+
+From this tabular summary, we can see that both men and women have approximately the same mean age of 34. The age value that is used in this analysis is calculated by adding 20 in the participants age in 1997. This new age variable was created to be in line with the year from which the outcome variable, `income`, was calculated. 
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+tot.female = age_summary$`Overall Count`[1]
+tot.male = age_summary$`Overall Count`[2]
+
+age_sex_combo <- nlsy_subset %>% 
+  group_by(sex, age.in.2017) %>% 
+  summarize(Count = n(),
+            Proportion = if(sex == "Female") {n()/tot.female}
+                   else {n()/tot.male})
+
+kable(age_sex_combo, format = "markdown", digits = 3, col.names = c("Sex", "Age in 2017", "Count", "Proportion"))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Creating a bar chart of age and sex with error bars
+age.df <- nlsy_subset %>%
+  group_by(sex, age.in.2017) %>%
+  summarize(n = n(), .groups="keep")
+
+age.df <- age.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+age.toplot <- age.df %>%
+  group_by(sex, age.in.2017) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+age.toplot %>%
+  ggplot(aes(x=age.in.2017, y = prop, fill=sex)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin=lower, ymax=upper), 
+                width=.2,                   
+                position=position_dodge(0.9)) +
+  xlab("Age in 2017") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  ggtitle("Distribution of Age by Sex" ) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+From the bar graphs and the tabular summary, we can observe that the breakdown of age is approximately the same between men and women. Sex does not appear to have an influence on the distribution of age in the dataset.
+
+
+#### Race/Ethnicity
+
+
+To begin initially exploring the `race` variable, we created a tabular summary of racial/ethnic background by sex. This tells us if the sample we are working with was properly randomized on the `race` variable.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+sex_summary <- nlsy_subset %>% 
+  group_by(sex) %>% 
+  summarize("Total_Count" = n(), .groups="keep")
+
+total.female = sex_summary$`Total_Count`[1]
+total.male = sex_summary$`Total_Count`[2]
+
+race_sex_summary <- nlsy_subset %>%
+            group_by(sex, race) %>%
+            summarize(Count = format(n(), big.mark=","), "Proportion"= if(sex == "Female") {n()/total.female}
+                   else {n()/total.male}, .groups="keep")
+
+
+
+race_sex_summary <- na.omit(race_sex_summary)
+kable(race_sex_summary, caption = "Breakdown of Race by Sex", col.names = c("Sex", "Race", "Count", "Proportion"))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Creating a bar of race and sex with error bars
+race.df <- nlsy_subset %>%
+  group_by(sex, race) %>%
+  summarize(n = n(), .groups="keep")
+
+race.df <- race.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+race.toplot <- race.df %>%
+  group_by(sex, race) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+race.toplot %>%
+  ggplot(aes(x = race, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position=position_dodge(0.9)) +
+  xlab("Race/Ethnicity") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  ggtitle("Distribution of Race by Sex" ) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+As we can see from the bar chart and tabular summary the distribution of race/ethnicity is quite similar between men and women.
+
+
+
+Now that we have a general idea of how the race variable breaks down by sex, we can explore this variable a little further. In order to get a general idea of how racial background effects income we created some buckets to place respondents in. We created a "0 - 5000" for those with very little or no income, and a "5000 - 20000" bucket to get an idea of whose income places them below the poverty line. After that, we used 10,000 ranges up to over 100,000 dollars which we set as our topcoded bucket.
+
+
+
+``` {r, echo=FALSE, warning=FALSE, message=FALSE}
+
+race_income_summary <- nlsy_subset %>% 
+  group_by(race, sex) %>% 
+  summarize("Count" = n(),  "Unknown" = sum(is.na(income)),
+                            "$0 - $5,000"= sum(income <= 5000 & income >= 0, na.rm=TRUE), 
+                            "5,001 - $20,000"= sum(income > 5000 & income <= 20000, na.rm=TRUE),
+                            "$20,001 - $30,000"= sum(income > 20000 & income <= 30000, na.rm=TRUE),
+                            "$30,001 - $40,000"= sum(income > 30000 & income <= 40000, na.rm=TRUE),
+                            "$40,001 - $50,000"= sum(income > 40000 & income <= 50000, na.rm=TRUE),
+                            "$50,001 - $60,000"= sum(income > 50000 & income <= 60000, na.rm=TRUE),
+                            "$60,001 - $70,000"= sum(income > 60000 & income <= 70000, na.rm=TRUE),
+                            "$70,001 - $80,000"= sum(income > 70000 & income <= 80000, na.rm=TRUE),
+                            "$80,001 - $90,000"= sum(income > 80000 & income <= 90000, na.rm=TRUE),
+                            "$90,001 - $100,000"= sum(income > 90000 & income <= 100000,na.rm=TRUE),
+                            "$100,001+"= sum(income > 100000, na.rm = TRUE ),
+            .groups="keep")
+
+#race_income_summary <- na.omit(race_income_summary)
+kable(race_income_summary, caption = "Distribution of Income by Race and Sex")
+
+
+```
+
+We can see that the counts are generally pretty varied but it's hard to tell proportionally if income distribution is even across different racial backgrounds. To make variations in the dataset easier to see, we converted all of our counts into proportions of the total of each racial group.
+
+
+**Next, we calculated the proportions:**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+race_income_summary.prop <- race_income_summary <- nlsy_subset %>% 
+  group_by(race,sex) %>% 
+  summarize("Unknown" = sum(is.na(income) == TRUE)/n(),
+                            "$0 - $5,000"= sum(income <= 5000 & income >= 0, na.rm=TRUE)/n(), 
+                            "$5,001 - $20,000"= sum(income > 5000 & income <= 20000, na.rm=TRUE)/n(),
+                            "$20,001 - $30,000"= sum(income > 20000 & income <= 30000, na.rm=TRUE)/n(),
+                            "$30,001 - $40,000"= sum(income > 30000 & income <= 40000, na.rm=TRUE)/n(),
+                            "$40,001 - $50,000"= sum(income > 40000 & income <= 50000, na.rm=TRUE)/n(),
+                            "$50,001 - $60,000"= sum(income > 50000 & income <= 60000, na.rm=TRUE)/n(),
+                            "$60,001 - $70,000"= sum(income > 60000 & income <= 70000, na.rm=TRUE )/n(),
+                            "$70,001 - $80,000"= sum(income > 70000 & income <= 80000, na.rm=TRUE )/n(),
+                            "$80,001 - $90,000"= sum(income > 80000 & income <= 90000, na.rm=TRUE)/n(),
+                            "$90,001 - $100,000"= sum(income > 90000 & income <= 100000, na.rm=TRUE)/n(),
+                            "Over100k"= sum(income > 100000, na.rm=TRUE)/n(),
+            .groups="keep")
+
+
+
+kable(race_income_summary.prop, digits = 2, caption = "Distribution of Income by Race and Sex (As Proportions)")
+
+```
+
+From this table we can tell there are some significant disparities present in the distribution of income by race. It seems clear from the data that Non-Black/Non-Hispanic men and women appear in lower proportions than other groups at incomes below $30,000. For these reasons we decided we will explore these varaibles further in our analysis. It appears that Black and Hispanic men and women are more highly concentrated in the lower-income brackets than their Non-Black, Non-Hispanic counterparts.
+
+
+#### Marital Status
+
+In our discussions of potential variables, marital status quickly emerged as an important aspect to consider. For this data, we used the 2011 marital status responses. Since there is no way to determine the marital status of those not interviewed or those who skipped the question, we set those values to NA.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nlsy_subset$marital.status[nlsy_subset$marital.status == "Non-Interview"] <- NA
+nlsy_subset$marital.status[nlsy_subset$marital.status == "Invalid Skip"] <- NA
+
+marital_summary <- nlsy_subset %>% 
+  group_by(sex, marital.status) %>% 
+  summarize("Total_Count" = format(n(), big.mark = ','), .groups = 'keep')
+
+
+marital_summary <- na.omit(marital_summary)
+
+kable(marital_summary, format = "markdown", caption =  "Distribution of Marital Status by Sex", 
+      col.names = c("Sex", "Marital Status", "Total Count"))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+marital.df <- nlsy_subset %>%
+  group_by(sex, marital.status) %>%
+  summarize(n = n(), .groups="keep")
+
+marital.df <- marital.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+marital.toplot <- marital.df %>%
+  group_by(sex, marital.status) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+marital.toplot %>%
+  ggplot(aes(x=marital.status, y = prop, fill=sex)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin=lower, ymax=upper), 
+                width=.2,                   
+                position=position_dodge(0.9)) +
+  xlab("Marital Status") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 90)) + 
+  ggtitle("Distribution of Marital Status by Sex" ) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+It appears from our plot that more women are both married and divorced than men. Based on the error bars, the differences for these two marital statuses appear to be statistically significant.
+
+
+#### Citizenship
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+citizen.df <- nlsy_subset %>%
+  group_by(sex, citizenship) %>%
+  summarize(n = n(), .groups="keep")
+
+citizen.df <- citizen.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+citizen.toplot <- citizen.df %>%
+  group_by(sex, citizenship) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+citizen.toplot %>%
+  ggplot(aes(x = citizenship, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position = position_dodge(0.9)) +
+  xlab("Citizenship Status") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  ggtitle("Respondent Citizenship Status by Sex" ) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+citizen2 <- 
+nlsy_subset %>%
+  group_by(sex, citizenship) %>%
+  summarize("Count" = format(n(), big.mark = ","),
+            "Proportion" = round(n()/tot.num.obvs, 2),
+             .groups="keep")
+                          
+
+kable(citizen2, format="markdown", col.names = c("Sex", "Citizenship Status", "Count", "Proportion of Total"), caption = "Distribution of Citizenship by Sex")
+
+```
+
+The tabular summary shows that `r (citizen2$Proportion[5]+citizen2$Proportion[1])*100`% of respondents are U.S. citizens. Furthermore, the graphical summary suggests that a roughly equal proportion of men and women are U.S. citizens.
+
+#### Urban/Rural Residence
+
+Another demographic variable we chose identifies the respondent's residence type when they were 12. This is categorized as either urban or rural. The setting in which the respondent grew up could limit the resources available to them, thereby impacting their future income potential. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+residence <- 
+nlsy_subset %>%
+  group_by(sex, urban.status.age.12) %>%
+  summarize("Count" = format(n(), big.mark = ","),
+            "Proportion" = round(n()/tot.num.obvs, 2),
+             .groups="keep")
+                          
+
+kable(residence, format="markdown", col.names = c("Sex", "Urban/Rural Residence", "Count", "Proportion"), caption = "Distribution of Urban/Rural Residence by Sex" )
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+urban.df <- nlsy_subset %>%
+  group_by(sex, urban.status.age.12) %>%
+  summarize(n = n(), .groups="keep")
+
+urban.df <- urban.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+urban.toplot <- urban.df %>%
+  group_by(sex, urban.status.age.12) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+urban.toplot %>%
+  ggplot(aes(x = urban.status.age.12, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position = position_dodge(0.9)) +
+  xlab("Urban/Rural Residence at Age 12") +
+  ylab("Proportion of Respondents") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  ggtitle("Distribution of Urban/Rural Residence by Sex" ) + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+`r round((residence$Proportion[5]+residence$Proportion[1])*100, 2)`% of respondents lived in an urban area at the age of 12. There are no patterns in the data in terms of sex - the type of residence at age 12 was evenly divided between men and women.
+
+
+**ANOVA to Test the Association Between Residence Type and Income**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#recoding "Unknown" and "NA" residence type as NA for the purposes of statistical analysis
+nlsy_subset$urban.status.age.12[nlsy_subset$urban.status.age.12 == "Unknown" ] <- NA
+nlsy_subset$urban.status.age.12[nlsy_subset$urban.status.age.12 == "NA" ] <- NA
+
+#ANOVA to test the association between residence type and income
+summary(aov(income ~ urban.status.age.12, data = nlsy_subset))
+summary(aov(income ~ urban.status.age.12, data = nlsy_subset_notop))
+
+```
+
+
+Respondents with "NA" or "Unknown" residence were reassigned as NA for the purposes of statistical analysis. ANOVA results show there is no statistically significant relationship between the type of residence (urban vs. rural) at age 12 and total income later in life. These results hold for subsets of the data both with and without topcoded income values included. 
+
+
+#### Number of Children under 6 in the Household
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nlsy_subset$num.children.under.6[nlsy_subset$num.children.under.6 == -5] <- NA
+nlsy_subset$num.children.under.6[nlsy_subset$num.children.under.6 == -3] <- NA
+
+children_summary <- nlsy_subset %>% 
+  group_by(sex, num.children.under.6) %>% 
+  summarize("Total_Count" = format(n(), big.mark = ','), .groups = 'keep')
+
+
+children_summary <- na.omit(children_summary)
+
+kable(children_summary, format = "markdown", caption = "Distribution of the Number of Children by Sex", 
+      col.names = c("Sex", "Number of Children Under the Age of 6", "Total Count"))
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+children.df <- nlsy_subset %>%
+  group_by(sex, num.children.under.6) %>%
+  summarize(n = n(), .groups="keep")
+
+children.df <- children.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+children.toplot <- children.df %>%
+  group_by(sex, num.children.under.6) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+children.toplot %>%
+  ggplot(aes(x = num.children.under.6, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position=position_dodge(0.9)) +
+  xlab("Number of Children in Household Under Age 6") +
+  ylab("Proportion of Respondents") + 
+  ggtitle("Distribution of the Number of Children Under 6  by Sex") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+While  it is true that 0 children in the household under age 6 was the highest category for both men and women in 2011, it looks like many more men had 0 children under 6 in the household than women. To be sure this is a statistically significant difference, we ran a t-test.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+num.children.test <- t.test( num.children.under.6 ~ sex, data = nlsy_subset)
+num.children.test
+```
+
+The results of the t-test show that there is a statiscally significant difference in the mean number of children that men and women have. Specifically, women are more likely to have more children under the age of 6 in their household than men.
+
+### Education-Related Variables
+
+#### Highest Degree Earned by Respondent
+
+**Recoding**
+
+The two negative values for this variable correspond to "Non-Interview" and "Invalid Skip", which both don't have a useful interpretation. Therefore, the variable was recoded accordingly to set entries with these responses to "NA".
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+nlsy_subset$highest.degree.earned[nlsy_subset$highest.degree.earned  == "Non-Interview"] <- NA
+nlsy_subset$highest.degree.earned[nlsy_subset$highest.degree.earned  == "Invalid Skip"] <- NA
+
+
+education_summary <- nlsy_subset %>% 
+  group_by(sex, highest.degree.earned) %>% 
+  summarize("Total_Count" = n(), .groups = 'keep')
+
+
+education_sex_summary <- nlsy_subset %>%
+            group_by(sex, highest.degree.earned) %>%
+            summarize(Count = format(n()), "Proportion"= if(sex == "Female") {n()/total.female}
+                   else {n()/total.male}, .groups="keep")
+
+
+kable(education_sex_summary, format = "markdown", digits = 2, caption = "Distribution of Highest Degree Earned by Sex", 
+      col.names = c("Sex", "Highest Degree Earned", "Count", "Proportion"))
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+degree.df <- nlsy_subset %>%
+  group_by(sex, highest.degree.earned) %>%
+  summarize(n = n(), .groups="keep")
+
+degree.df <- degree.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+degree.toplot <- degree.df %>%
+  group_by(sex, highest.degree.earned) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+degree.toplot %>%
+  ggplot(aes(x = highest.degree.earned, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position=position_dodge(0.9)) +
+  xlab("Highest Degree Earned Earned by Respondent") +
+  ylab("Proportion") + 
+  ggtitle("Distribution of Highest Degree Earned by Sex") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+The distribution of highest degree earned among male and female participants varies. For some degrees, this variation appears to be statistically significant. The educational category with the highest frequency for both men and women is High School Diploma. Women earned more Bachelors and Masters degrees, while men earned more GEDs and High School Diplomas. It appears that men earned fewer degrees, however, there are fewer "NA" responses for men which should be taken into consideration.
+
+
+#### Highest Grade Completed by Residential Dad
+
+The following summaries investigate the highest level of education completed by the respondent's residential parents. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#"Valid skip" recoded as NA
+nlsy_subset$residential.dad.highest.grade.bucket[nlsy_subset$residential.dad.highest.grade.bucket == "Valid Skip" ] <- "NA"
+
+res.dad.highest.grade <- 
+nlsy_subset %>%
+  group_by(residential.dad.highest.grade.bucket) %>%
+  summarize("Count" = format(n(), big.mark = ","),
+            "Proportion" = (n()/tot.num.obvs),
+                           .groups="keep")
+
+kable(res.dad.highest.grade, format="markdown",  digits = 3, caption = "Distribution of Dad's Highest Level of Education", 
+      col.names = c("School Completed by Residential Dad", "Count", "Proportion"))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+dad.df <- nlsy_subset %>%
+  group_by(sex, residential.dad.highest.grade.bucket) %>%
+  summarize(n = n(), .groups="keep")
+
+dad.df <- dad.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+dad.toplot <- dad.df %>%
+  group_by(sex, residential.dad.highest.grade.bucket) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+dad.toplot %>%
+  ggplot(aes(x = residential.dad.highest.grade.bucket, y = prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position=position_dodge(0.9)) +
+  xlab("Highest Grade Completed by Residential Dad") +
+  ylab("Proportion of Respondents") + 
+  ggtitle("Distribution of Highest Grade Completed by Residential Dad") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Calculating some additional statistics for inline code
+res.dad.high.school <- round(sum(nlsy_subset[["residential.dad.highest.grade.bucket"]]=="Completed high school")/nrow(nlsy_subset)*100,2)
+res.dad.1.college <- round(sum(nlsy_subset[["residential.dad.highest.grade.bucket"]]=="1-2 years of college")/nrow(nlsy_subset)*100,2)
+res.dad.3.college <- round(sum(nlsy_subset[["residential.dad.highest.grade.bucket"]]=="3-4 years of college")/nrow(nlsy_subset)*100,2)
+```
+
+**Key Takeaways**
+
+`r res.dad.high.school`% of residential fathers completed high school and `r res.dad.1.college`% of completed 1-2 years of college. Another `r res.dad.3.college`% completed 3-4 years of college.
+
+
+#### Highest Grade Completed by Residential Mom
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#"Valid skip" recoded as NA
+nlsy_subset$residential.mom.highest.grade.bucket[nlsy_subset$residential.mom.highest.grade.bucket == "Valid Skip" ] <- "NA"
+
+res.mom.highest.grade <- 
+nlsy_subset %>%
+  group_by(residential.mom.highest.grade.bucket) %>%
+  summarize("Count" = format(n(), big.mark = ","),
+            "Percent of total" = (n()/tot.num.obvs),
+                           .groups="keep")
+
+kable(res.mom.highest.grade, format="markdown", digits = 3, caption = "Distribution of Mom's Highest Level of Education",
+      col.names = c("School Completed by Residential Mom", "Count", "Proportion"))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+mom.df <- nlsy_subset %>%
+  group_by(sex, residential.mom.highest.grade.bucket) %>%
+  summarize(n = n(), .groups="keep")
+
+mom.df <- mom.df %>%
+  group_by(sex) %>%
+  mutate(totals = sum(n))
+
+mom.toplot <- mom.df %>%
+  group_by(sex, residential.mom.highest.grade.bucket) %>%
+  summarize(prop = n/totals,
+            lower= prop.test(n, totals)$conf.int[1],
+            upper = prop.test(n, totals)$conf.int[2], .groups="keep")
+
+mom.toplot %>%
+  ggplot(aes(x = residential.mom.highest.grade.bucket, y=prop, fill = sex)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), 
+                width = .2,                   
+                position = position_dodge(0.9)) +
+  xlab("Highest Grade Completed by Residential Mom") +
+  ylab("Proportion of Respondents") + 
+  ggtitle("Distribution of Highest Grade Completed by Residential Mom") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Calculating some additional statistics for inline code
+res.mom.high.school <- round(sum(nlsy_subset[["residential.mom.highest.grade.bucket"]]=="Completed high school")/nrow(nlsy_subset)*100,2)
+res.mom.1.college <- round(sum(nlsy_subset[["residential.mom.highest.grade.bucket"]]=="1-2 years of college")/nrow(nlsy_subset)*100,2)
+res.mom.3.college <- round(sum(nlsy_subset[["residential.mom.highest.grade.bucket"]]=="3-4 years of college")/nrow(nlsy_subset)*100,2)
+
+res.dad.education.na <- round(sum(nlsy_subset[["residential.dad.highest.grade.bucket"]] =="NA")/nrow(nlsy_subset)*100, 2)
+
+res.dad.education.mean <- round(mean(nlsy_subset$residential.dad.highest.grade.completed, na.rm = TRUE), digits = 2)
+res.mom.education.mean <- round(mean(nlsy_subset$residential.mom.highest.grade.completed, na.rm = TRUE), digits = 2)
+```
+
+**Key Takeaways**
+
+Residential mothers appear to be better educated when compared to residential fathers. `r res.mom.high.school` % of residential mothers completed high school and `r res.mom.1.college`% of completed 1-2 years of college. Another `r res.mom.3.college`% completed 3-4 years of college.
+
+Notably, there are more "Valid Skip" or "NA" responses for the residential dads and this is worth further review. `r res.dad.education.na`% of respondents don't have a valid datapoint for their residential dad.
+
+When we compare the average number of school years completed by the residential parents, they are roughly equal. On average, residential dads completed `r res.dad.education.mean` years of school, which correlates to completing high school. By comparison, residential moms completed an average of `r res.mom.education.mean` years of school. 
+
+
+#### Summary Graphs for Education Variables & ANOVA tests
+
+The following box plots compare the highest degree earned by respondents on the x-axis and the number of school years completed by the residential parent on the y-axis. As the degree level advances towards Bachelors, Masters, Professional, and PhD degrees, the median education level of the parent also increases. These trends are apparent for both the residential mothers and fathers.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#box plot for highest degree earned based on fathers' total years of school (grades completed)
+ggplot(data = nlsy_subset, aes(x = highest.degree.earned, y = residential.dad.highest.grade.completed))+
+  geom_boxplot(fill=I('steel blue')) +
+  ggtitle("Highest Degree Earned Compared to Grades Completed by Residential Father") +
+  xlab("Highest Degree Earned by Respondent") +
+  ylab("School (Years)") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#box plot for highest degree earned based on mothers' total years of school (grades completed)
+ggplot(data = nlsy_subset, aes(x = highest.degree.earned, y = residential.mom.highest.grade.completed))+
+  geom_boxplot(fill = I('steel blue')) +
+  ggtitle("Highest Degree Earned Compared to Grades Completed by Residential Mother") +
+  xlab("Highest Degree Earned by Respondent") +
+  ylab("School (Years)") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#ANOVA to test the association between residential parents' education and income
+summary(aov(income ~ residential.mom.highest.grade.completed, data = nlsy_subset))
+summary(aov(income ~ residential.dad.highest.grade.completed, data = nlsy_subset))
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+summary(aov(income ~ residential.mom.highest.grade.completed, data = nlsy_subset_notop))
+summary(aov(income ~ residential.dad.highest.grade.completed, data = nlsy_subset_notop))
+```
+
+ANOVA results show that there is a statistically significant difference between respondents income and the education obtained by their residential parents. These results hold for both residential mother and father and when topcoded income values have been removed from the dataset.
+
+Before analyzing the data, we hypothesized a sex-based relationship between a residential parent's education and the highest degree obtained by sex. For example, we considered that the highest degree obtained by a female respondent would depend on the level of education completed by her residential mother. However, the data exploration did not reveal these expected patterns.
+
+### Findings
+
+#### Checks for Collinearity
+#### Group 1: Criminal History Variables
+Given that both of the variables related to criminal history capture similar information, we conducted a test of collinearity on the `longest.length.incarc.months` and the `num.times.incarc` variables.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+incarc.var.names <- c("num.times.incarc",    
+                      "longest.length.incarc.months")
+ggpairs(nlsy_subset[,incarc.var.names], axisLabels = "internal") +
+  ggtitle("Plot to Measure Collinearity of Incarceration Variables")
+
+
+```
+
+
+There does not appear to be any strong collinearity between the incarceration-related variables.
+
+After testing for collinearity, we also plotted income against the two criminal history variables to get a sense for how they varied with income.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Some basic plots of the incarceration variables 
+qplot(num.times.incarc, income, data = nlsy_subset) + xlab("Number of Times Incarcerated") + ylab("Income") + ggtitle("Number of Times Incarcerated Compared to Income")
+
+
+qplot(longest.length.incarc.months, income, data = nlsy_subset) +  xlab("Longest Length of Time Incarcerated (in months)") + ylab("Income") + ggtitle("Longest Length of Time Incarcerated Compared to Income")
+
+
+```
+
+While the incarceration-related variables do not appear to be collinear, there does appear to be some association between each of the variables and the income variable. Particularly, as the number of times someone has been incarcerated increases, their income appears to decline. Additionally, as the length of a participant's longest period of incarceration increases, their income also appears to decline. 
+
+Despite these general trends, there do appear to be a few outliers in the dataset. Particularly, we see that there is an respondent whose longest length of time incarceration is greater than 50 months (approximately 4 years) but they made more than $200,000 in income in 2017, compared to other participants with the same longest length of incarceration, whose income averages to around 50,000 dollars. The effect of these outliers in the incarceration variables is explored further in the analysis distinguishing between when the `income` outcome variable is topcoded and when it is not topcoded.
+
+
+#### Group 2: Education Variables
+We were also interested in seeing if the highest grade completed by the residential mother and father of the participants were in any way collinear, given that these variables capture similar types of information. One could expect that as one residential parent has more education, the other parent is more likely to have a comparable level of education.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+educ.var.names <- c("residential.dad.highest.grade.completed","residential.mom.highest.grade.completed")
+ggpairs(nlsy_subset[,educ.var.names], axisLabels = "internal") +
+  ggtitle("Plot to Measure Collinearity of Residential Parents' Education")
+
+highest.grade.cor <- cor(nlsy_subset$residential.dad.highest.grade.completed, nlsy_subset$residential.mom.highest.grade.completed, use = "complete.obs")
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+qplot(residential.dad.highest.grade.completed, residential.mom.highest.grade.completed, data = nlsy_subset) + 
+  xlab("Number of School Years Completed by Residential Dad") +
+  ylab("Number of School Years Completed by Residential Mom") + 
+  ggtitle("Comparison of Residential Parents' Education")
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+qplot(residential.dad.highest.grade.completed, income, data = nlsy_subset) + 
+  xlab("Number of School Years Completed by Residential Dad") +
+  ylab("Income") + 
+  ggtitle("Comparison of Residential Dad's Education and Respondent's Income")
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+qplot(residential.mom.highest.grade.completed, income, data = nlsy_subset) + 
+  xlab("Number of School Years Completed by Residential Mom") +
+  ylab("Income") + 
+  ggtitle("Comparison of Residential Mom's Education and Respondent's Income")
+
+```
+
+While there is an association of `r round(highest.grade.cor, 2)` between the educational levels of parents, there does not appear to be strong collinearity in the parental education variables. As discussed in analysis of education variables, the educational achievements of residential parents impact the total income of respondents.
+
+There are notable outliers, however. There are a number of respondents who reported over 100,000 dollars in income while their residential parent(s) completed less than 10 years of school (this corresponds to not completing high school). 
+
+
+### Linear Regression Models & Associated Diagnostic Plots 
+
+#### Model 1: Regressing Income on All Variables in Our Subset
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+nlsy_subset$urban.status.age.12[nlsy_subset$urban.status.age.12  == "Unknown"] <- NA
+nlsy_subset$urban.status.age.12[nlsy_subset$urban.status.age.12  == "Valid Skip"] <- NA
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+all.var.lm <- lm(income ~ ., data = nlsy_subset)
+
+#removing the duplicate age variable and the duplicate parental education values 
+all.var.lm2 <- update(all.var.lm, . ~ . - age.in.1997 - residential.dad.highest.grade.bucket - residential.mom.highest.grade.bucket)
+kable(coef(summary(all.var.lm2)), digits = c(0,0,2,4))
+
+```
+From this initial linear regression model, we can observe that, holding all other variables constant, men make `r format(round(summary(all.var.lm2)$coef["sexMale","Estimate"], digits = 0), big.mark = ",")` dollars more than their female counterparts. This coefficient estimate is statistically significant, with a p-value of `r summary(all.var.lm2)$coef["sexMale","Pr(>|t|)"]`. 
+
+Both of the criminal history-related variables, `num.times.incarc` and `longest.length.incarc.months` both appear to be negatively correlated with income. As the number of times an individual has been incarcerated increases and as the length of a respondent's longest period of incarceration increases, their income appears to decline. Neither of these coefficients appear to be statistically significant at a level of 0.05. 
+
+Respondents with an unknown birtplace and those who were not born in the U.S. appear to make more money on average, holding all other variables constant, than their counterparts who are U.S. citizens. A critical fact to note, however, is that individuals with an unknown birthplace make up only 794 of the respondents, so this effect could be overstated given the small sample size, relative to the number of respondents in the study who are citizens.
+
+With regard to impact of race on income, Black, Hispanic, and Mixed Race (Non Hispanic) respondents appear to, on average, make less than their Non-Black, Non-Hispanic counterparts. However, this difference in earnings does not appear to be statistically significant. 
+
+The education-related variables appear to have the most number of statistically significant associations with income. As the level of the highest degree that individuals have received increases, their earnings also appear to increase. Study participants with a Professional Degree (DDS, JD, or MD) appear to make, on average, `r format(round(summary(all.var.lm2)$coef["highest.degree.earnedProfessional Degree (DDS, JD, MD)","Estimate"], digits = 0), big.mark = ",")` dollars more than their counterparts who have not earned a degree. This coefficient 
+estimate is statistically significant, with a p-value of `r round(summary(all.var.lm2)$coef["highest.degree.earnedProfessional Degree (DDS, JD, MD)","Pr(>|t|)"], digits = 3)`. 
+
+Finally, individuals who are married appear to make, on average, `r format(round(summary(all.var.lm2)$coef["marital.statusMarried","Estimate"], digits = 0), big.mark = ",")` dollars more than their counterparts who are not married. This difference is statistically significant in this linear regression model, with a p-value of `r summary(all.var.lm2)$coef["marital.statusMarried","Pr(>|t|)"]`.
+
+From the R-squared value for this linear regression model, only about 30% of the variance in the data is explained by the model. To conduct further analysis on model fit, we also ran the `plot() ` function to analyze the diagnostic plots for this model.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Diagnostic Plots for the first linear regression model
+plot(all.var.lm2)
+``` 
+
+
+**Residual vs Fitted Plot**
+
+The residual vs. fitted plot shows that, for the lower fitted values, there is some clustering around 0 but as the fitted values increase, there is a greater deviation away from a residual of 0. This could be caused, in part, by the top-coding of the income variable. Furthermore, as we observed from the earlier tabular and graphical summaries, the majority of respondents make around $50,000, therefore there are more observations on which to calculate the residuals in this part of the income spectrum. This isn't the case, however, with the observations in the top income tier of the dataset.
+
+**Normal QQ Plot**
+
+The normal QQ plot shows a similar trend to the residual vs. fitted plot graph. For the majority of the curve, the residuals match almost perfectly to the diagonal, demonstrating that these residuals appear to be mostly normally distrbuted. Once we hit of a theoretical quantile of about 2 however, the residuals appear to drastically deviate from the diagonal line. Therefore, in the upper tail of the dataset, the assumption of normality does not appear to hold.
+
+**Scale-Location Plot**
+
+The scale-location plot appears to make a strong case that the assumption of constant variance does not hold for this model. As the fitted values increase, the variance increases steadily. This could also likely to be a side effect of the top-coding of the income variable.
+
+**Outliers & The Residuals vs Leverage Plot**
+
+The residuals vs leverage plot highlights that there are a few values in the dataset that appear to be outliers, as they lie on or near the Cook's disance lines. Furthermore, these values have high leverage and high residuals. 
+
+#### Model 2: Addressing the Top-Coding of the Income Variable
+
+The following linear regression is the same as the previous model (referred to as Model #1), where income is regressed on all variables in the subset. The notable exception is that observations with topcoded income are no longer in the subset.
+
+``` {r, echo=FALSE, warning=FALSE, message=FALSE}
+all.var.lm <- lm(income ~ ., data = nlsy_subset_notop)
+
+#removing the duplicate age variable and the duplicate parental education values 
+all.var.lm2.notop <- update(all.var.lm, . ~ . - age.in.1997 - residential.dad.highest.grade.bucket - residential.mom.highest.grade.bucket)
+kable(coef(summary(all.var.lm2.notop)), digits = c(0,0,2,4))
+```
+
+From this linear regression model, we can observe that, holding all other variables constant, men make `r format(round(summary(all.var.lm2.notop)$coef["sexMale","Estimate"], digits = 0), big.mark = ",")` dollars more than their female counterparts. This coefficient estimate is statistically significant, with a p-value of `r summary(all.var.lm2.notop)$coef["sexMale","Pr(>|t|)"]`.
+
+The results of this model are very similar to Model #1, with some exceptions. The `num.times.incarc` variable is still negatively associated with income. In this model, unlike in Model #1 however, this relationship is statistically significant. There are some outliers in the comparison of income and criminal history (those with a history of incarceration and very high income). With the removal of these outliers, the model perhaps is better capturing the impact of criminal history on income.
+
+With regard to the impact of race on income, Black, Hispanic, and Mixed Race (Non Hispanic) respondents appear to, on average, make less than their Non-Black, Non-Hispanic counterparts. In this model, the difference in earnings is statistically significant for Black respondents.
+
+From the R-squared value for this linear regression model, only about 25% of the variance in the data is explained by the model. This R-squared is slightly lower than that of Model #1. To conduct further analysis on model fit, we also ran the `plot()` function to analyze the diagnostic plots for this model.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Diagnostic Plots for the first linear regression model, without topcoded values
+plot(all.var.lm2.notop)
+```
+
+
+**Residual vs Fitted Plot**
+
+The residual vs. fitted plot shows that, for the lower fitted values, there is some clustering around 0 but as the fitted values increase, there is a greater deviation away from a residual of 0. This plot suggests that the model is still overestimating income in lower income brackets and overestimating income in higher income brackets. The deviation in the upper tail of the dataset, however, is not as drastic in Model #2 as it was in Model #1.
+
+**Normal QQ Plot**
+
+The normal QQ plot shows a similar trend to the residual vs. fitted plot in the first model. Although there are still large deviations in the upper tail, the data in this model appear more normal than in Model #1.
+
+**Scale-Location Plot**
+
+As the fitted values increase, the variance still increases steadily. The slope of the standardized residuals, although not constant, is smaller than the slope in Model #1.
+
+**Outliers & The Residuals vs Leverage Plot**
+
+The residuals vs leverage plot show that the outliers in the first plot persist even with the removal of topcoded income.
+
+
+Overall, it appears that removing the topcoded income values has addressed some of the non-constant variance from Model #1, but not all of it.
+
+
+#### Models 3 & 4: Distilling the Impact of Gender & Criminal History on Income 
+
+**Adding An Interaction Term between sex and num.times.incarc**
+
+From the tabular and graphical summaries conducted earlier, it was evident that were was a difference in the incarceration rate of respondents in the study based on their gender. Particuarly, more men than women in the study had been incarcerated and, among the population that had been incarcerated, men tended to serve longer sentences than women. With this information, we decided to take a look at the gender differences in income based on criminal history.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and number of times incarcerated
+sex.incarc.lm <- update(all.var.lm2.notop, . ~ . + sex * num.times.incarc)
+kable(coef(summary(sex.incarc.lm)), digits = c(0,0,2,4))
+```
+
+From the results of adding this interaction term, we can observe that there is a difference in the impact of incarceration on income depending on the study participants' gender. Specifically, we see that for women, each additional incarceration results in a `r  format(abs(round(summary(sex.incarc.lm)$coef["num.times.incarc","Estimate"], digits = 0)), big.mark = ",")` dollar decline in their income. However, for men, each additional incarceration results in a `r format( abs(round(summary(sex.incarc.lm)$coef["num.times.incarc","Estimate"], digits = 0) + round(summary(sex.incarc.lm)$coef["sexMale:num.times.incarc", "Estimate"], digits = 0)), big.mark = ",") ` dollar decline in their income. Although these findings are in line with our tabular and graphical summaries for `num.times.incarc`, neither one of these findings is statistically significant.
+
+In this model, we still observe that the `sex`, `citizenship`, `highest grade completed by mom and dad`, the `highest degree earned`, and the married `marital status` variables have a statistically significant assocations with income. 
+
+
+
+**Testing the Significance of Adding the Sex * Number of Times Incarcerated Term**
+
+Now that the `sex * num.times.incarc` interaction variable was added to the regression, we also decided to test whether this addition was statistically signfiicant using an ANOVA test.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+anova(all.var.lm2.notop, sex.incarc.lm)
+
+```
+
+From this analysis, we can see that because the p-value for this test is `r anova(all.var.lm2.notop, sex.incarc.lm)$"Pr(>F)"[2]`, we would fail to reject the null hypothesis that there is no income gap between men and women based on the number of times that they are incarcerated. Put simply, the data suggests that the income gap between men and women does not vary based on the number of times an individual has been incarcerated.
+
+**Adding An Interaction Term of Sex * Longest.Length.Incarc.Months**
+
+We also saw from the initial tabular and graphical  summaries that men, on average, served longer sentences when they were incarcerated than women. Therefore, we also wanted to add an interaction term between `sex` and `longest.length.incarc.months` to see if there were any differences in income by sex based on the longest length of time that an individual had been incarcerated.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sex.incarc.lm.2 <- update(sex.incarc.lm, . ~ . + sex*longest.length.incarc.months)
+kable(coef(summary(sex.incarc.lm.2)), digits = c(0,0,2,4))
+```
+
+The results from this regression model indicate that for each additional month that a woman serves as part of a criminal sentence, her income decreases by `r abs(round(summary(sex.incarc.lm.2)$coef["longest.length.incarc.months","Estimate"], digits = 0))` dollars. For men, however, their income decreases by `r abs(round(summary(sex.incarc.lm.2)$coef["longest.length.incarc.months","Estimate"], digits = 0) + round(summary(sex.incarc.lm.2)$coef["sexMale:longest.length.incarc.months","Estimate"], digits = 0))` dollars. This suggests that the `longest.length.incarc.months` depresses the income of women to a slightly higher degree than it does for men. However, neither the interaction term with `longest.length.incarc.months` or the variable itself are statistically significant in this model.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+anova(sex.incarc.lm, sex.incarc.lm.2)
+```
+
+An ANOVA test also shows that the addition of this interaction term did not have a statistically significant impact on explaining income gaps observed in the model.
+
+#### Model 5: Distilling the Impact of Gender & Race on Income 
+
+
+**Is Race Statistically Significant?**
+
+Based on the tabular summaries and graphs we saw above, race seems to have a considerable effect on your income but we cannot be certain of this effect until we run an ANOVA test.  
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+
+all.var.lm2.xrace <- all.var.lm2
+
+all.var.lm2.xrace <- update(all.var.lm2.xrace, . ~ . - race)
+
+anova(all.var.lm2.xrace, all.var.lm2)
+```
+
+When we run the ANOVA test we see the p-value of `r anova(all.var.lm2.xrace, all.var.lm2)$"Pr(>F)"[2]` is large enough that race cannot be assessed to be a statistically significant predictor of income when income is topcoded. But that doesn't tell the full story.
+
+
+**Viewing the Effects of Top-Coding on the Interaction between Race and Income**
+
+We created a second linear model where we removed the top-coding of income earlier, but how much was that top-coding interacting with our race variable? We ran an ANOVA to test if race is still not statistically significant if we remove top coding.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+all.var.lm2.notop.xrace <- all.var.lm2
+
+all.var.lm2.notop.xrace <- update(all.var.lm2.notop.xrace, . ~ . - race)
+
+anova(all.var.lm2.notop.xrace, all.var.lm2)
+
+
+```
+
+Now when we run the ANOVA test we see the p-value of `r anova(update(all.var.lm2.notop, . ~ . - race), all.var.lm2.notop)$"Pr(>F)"[2]` is sufficiently small for us to say that race actually is a statistically significant predictor of income, even when taken with the rest of our model. This shows that top-coding can have significant effects in changing what variables are taken into consideration.
+
+We see clues of this when we look at our second model reviewing the effects of top coding income. In our topcoded data set the coefficient for Black is not statistically significant, but when we remove top coding from the income variable this is no longer true and the coefficient for Black meets the threshold for statistical significance at at a significance level of 0.05 with a p-value of `r summary(all.var.lm2.notop)$coef["raceBlack","Pr(>|t|)"]`. This is similar for other coefficients in the dataset that depress income which we will expand on in our analysis.
+
+
+For this reason we'll use our linear model without top-coding to test how race effects income.
+
+
+
+**Adding an interaction term between sex and race**
+
+The plots and tabular summaries above indicated that race had a significant impact on income, and that variance was not evenly distributed between the sexes. It is clear that Black men and women make less than Non-Black/Non Hispanic men and women. To explore this further we decided to dig into gender differences in income based on racial background. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and number of times incarcerated
+sex.race.lm <- update(all.var.lm2.notop, . ~ . + race * sex)
+kable(coef(summary(sex.race.lm)), digits = c(0,0,2,4))
+```
+
+The summary of this regression model with the addition of an interaction term between race and sex offers some very interesting results that ripple across all aspects of our analysis.
+
+
+**How Large is the Income Gap Between Different Racial Groups?**
+
+Adding the sex-race interaction offer some interesting insights into how race and sex affect income, and how income gaps vary across different racial groups.
+
+Mixed Race, Non-Hispanic men make `r format(abs(round(summary(sex.race.lm)$coef["raceMixed Race (Non Hispanic)","Estimate"], digits = 0) + round(summary(sex.race.lm)$coef["sexMale:raceMixed Race (Non Hispanic)", "Estimate"], digits = 0)), big.mark = ",")` dollars less than their Non-Black, Non-Hispanic counterparts. This is the largest income differential that we observed by analyzing the income gap by sex and race. 
+
+The biggest gap in income between women based on race also exists between Mixed Race, Non-Hispanic women and Non-Black, Non-Hispanic women. Mixed Race, Non-Hispanic women make `r format(abs(round(summary(sex.race.lm)$coef["raceMixed Race (Non Hispanic)","Estimate"], digits = 0)), big.mark = ",") ` dollars less than their Non-Black, Non-Hispanic counterparts.
+
+Neither of these findings, however, are statistically significant at a significance level of 0.05.
+
+
+
+**How Large is the Income Gender Gap by Racial Group?**
+
+The income gap between men and women is relatively close in size between Hispanic men and  Hispanic women with a gap of `r format(abs(round(summary(sex.race.lm)$coef["sexMale","Estimate"], digits = 0) +  round(summary(sex.race.lm)$coef["sexMale:raceHispanic", "Estimate"], digits = 0)), big.mark = ",")` dollars and Non-Black/Non-Hispanic with a gap of `r format(abs(round(summary(sex.race.lm)$coef["sexMale","Estimate"], digits = 0)), big.mark = ",")` dollars. These are the largest income gaps, but the coefficient for Hispanic men is not statistically significant.
+
+The income gap shrinks considerably when looking at Black men and women,  with a gap of `r format(abs(round(summary(sex.race.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.race.lm)$coef["sexMale:raceBlack", "Estimate"], digits = 0)), big.mark = ",")` dollars.
+
+
+
+**Other Effects**
+
+Another effect of adding an interaction variable between sex and race is that being divorced which was on the edge of statistical significance in the original model, with a p-value of `r summary(all.var.lm2.notop)$coef["marital.statusDivorced","Pr(>|t|)"]`, would now be considered statistically significant with a p-value of `r summary(sex.race.lm)$coef["marital.statusDivorced","Pr(>|t|)"]` when our `sex * race` interaction interaction variable is added. This makes sense as it follows the general trend showing how a few incomes at the top levels were skewing the results across multiple other variables when they were supressed by a topcoded value.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and number of times incarcerated
+plot(sex.race.lm)
+```
+
+
+**Residual vs Fitted Plot**
+
+The residual vs. fitted plot continue to show that, for the lower fitted values, there is clustering around 0 and as the fitted values increase,  deviation away from a residual of 0 increases, suggesting that this model is still overestimating income in lower income brackets, very slightly underestimating income in the middle brackets, and overestimating income in higher income brackets. The deviation in the upper tail is mostly similar to Model #2 but corrects slightly for the overestimation of income in the higher brackets.
+
+**Normal QQ Plot**
+
+The normal QQ plot shows a very similar trend to the residual vs. fitted plot in the Model #2 as we might expect from looking at the residual vs. fitted and while there are still large deviations in the upper tail, this model corrects very slightly for incomes in higher brackets.
+
+**Scale-Location Plot**
+
+As the fitted values increase, the variance still increases steadily, holding nearly identically with Model #2 but with some slight variation at the very top and bottom of the range.
+
+**Outliers & The Residuals vs Leverage Plot**
+
+The residuals vs leverage plot shows that the outliers in Model #2 remain present and adds some additional outliers as your income rises.
+
+
+**Conclusions from the Plot**
+
+Adding the sex*race interaction term appears to change very little that removing top coding from income didn't already change, while it addresses some minor issues with the model it appears to also introduce new outliers making it appear potentially redundant.
+
+
+**How does adding the sex/race interaction variable change predictions for the Income Gender Gap by Race?**
+
+
+Now that we've reviewed the analysis of the gender income gap we wanted to see exactly how large this gender based income gap was between different racial groups in the main effects model versus our model adding a sex*race interaction term.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+
+main.effects.tab <- nlsy_subset_notop %>%
+  group_by(race) %>%
+  summarize(income.gap = mean(income[sex == "Male"], na.rm = TRUE) -
+              mean(income[sex == "Female"], na.rm = TRUE))
+
+kable(main.effects.tab, digits = 0)
+```
+
+
+It appears the the main effects model is effective in showing general trends but misses the mark when predicting values for the size of the income gap by sex. At `r  format(abs(round(summary(sex.race.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.race.lm)$coef["sexMale:raceBlack", "Estimate"], digits = 0)), big.mark = ",")` , the income gap between Black men and women is nearly double what is predicted by the main effects model. However, we see that the similarity in income gap between Hispanic men and women and Non-Black/Non-Hispanic men and women is pretty accurate but it does underestimate the size of that gap by about 4,000 dollars. 
+
+The main effects model is most inaccurate when considering Mixed Race, Non-Hispanic respondents. It predicts a 14,836 dollar gap which is far off the `r  format(abs(round(summary(sex.race.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.race.lm)$coef["sexMale:raceMixed Race (Non Hispanic)", "Estimate"], digits = 0)), big.mark = ",")` dollar gap shown by the model. We suspect this is due to the small sample size present of Mixed Race, Non-Hispanic respondents as compared to other groups.
+
+
+**Testing the Significance of Adding an Interaction Variable on the Sex * Race Term**
+
+In order to determine how we should proceed with the insights gleaned from adding a  `sex * race`interaction variable we tested the statistical significance of our findings with an ANOVA test.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+anova(all.var.lm2.notop, sex.race.lm)
+```
+
+Reviewing our results, we see that while the p-value  of `r anova(all.var.lm2.notop, sex.race.lm)$"Pr(>F)"[2]` meets what we wouldlook for when assessing for 90% confidence of statistical significance, it falls short of the threshold required to reject the null hypothesis. Therefore  we fail to reject the null hypothesis that the income gap is the same across all racial categories at a significance level of 0.05.
+
+
+
+
+#### Model 6: Distilling the Impact of Marital Status by Sex on Income
+
+
+**Is the Effect of Marital Status Statistically Significant?:**
+
+
+In Model #1 and Model #2 we see that being married has a statistically significant effect on your income. Notably though, in Model 1 being divorced does not have a significant effect and divorce falls just slightly out of the range of having a statistically significant effect in Model #2. In Model #3 divorce also becomes statistically significant. To see if marital status is a statistically significant variable in our model we ran an ANOVA test.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+all.var.lm2.notop.xmarital <- all.var.lm2.notop
+
+all.var.lm2.notop.xmarital <- update(all.var.lm2.notop.xmarital, . ~ . - marital.status)
+
+anova(all.var.lm2.notop.xmarital, all.var.lm2.notop)
+
+```
+
+When we run the ANOVA test we see the p-value of `r anova(all.var.lm2.notop.xmarital, all.var.lm2.notop)$"Pr(>F)"[2]` is sufficiently small for us to say that marital status is a statistically significant predictor of income, and is influencing our model.  
+
+
+**Adding an interaction term between sex and marital status**
+
+
+Our tabular and graphical summaries above illustrated clearly that marital status is not uniform between men and women, with more women being married and divorced. The ANOVA test above additionally tells us that marital status has a statistically significant effect on income. With these facts in mind, we created an interaction variable for `sex * marital.status` to see how marital status interacts with sex to influence our model.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and number of times incarcerated
+sex.marital.lm <- update(all.var.lm2.notop, . ~ . + marital.status * sex)
+kable(coef(summary(sex.marital.lm)), digits = c(0,0,2,4))
+```
+
+**How Large is the Income Gap Between Marital Statuses?**
+
+From the summary we see a number of very interesting results.
+
+We see that being married has a strong positive impact on income with married men making `r format(abs(round(summary(sex.marital.lm)$coef["sexMale:marital.statusMarried","Estimate"], digits = 0) - round(summary(sex.marital.lm)$coef["sexMale:marital.statusDivorced", "Estimate"], digits = 0)), big.mark = ",")` dollars more on average than men who are divorced and significantly more than separated men at `r format(abs(round(summary(sex.marital.lm)$coef["sexMale:marital.statusMarried","Estimate"], digits = 0) - round(summary(sex.marital.lm)$coef["sexMale:marital.statusSeparated", "Estimate"], digits = 0)), big.mark = ",")` dollars.
+
+This positive correlation with income is also true for married women who on average make `r format(abs(round(summary(sex.marital.lm)$coef["marital.statusMarried","Estimate"], digits = 0) - round(summary(sex.marital.lm)$coef["marital.statusDivorced", "Estimate"], digits = 0)), big.mark = ",")` dollars more than their counterparts who are divorced.
+ 
+However being separated has far more positive correlation with income for women than men, with separated women making on average  `r format(abs(round(summary(sex.marital.lm)$coef["marital.statusSeparated","Estimate"], digits = 0) - round(summary(sex.marital.lm)$coef["marital.statusMarried", "Estimate"], digits = 0)), big.mark = ",")` dollars more than married women.
+
+
+**How Large is the Income Gender Gap between Different Marital Statuses?**
+
+We also see some interesting results regarding the gender differential for similar marital statuses. First, most strikingly, we see a striking `r format(abs(round(summary(sex.marital.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.marital.lm)$coef["sexMale:marital.statusWidowed", "Estimate"], digits = 0)), big.mark = ",") ` dollar income gap between men who have been widowed and women who have been widowed, and the result is highly statistically significant, suggesting losing a spouse has a far more significant impact on women's income than mens.
+
+It is important to note that the sample size for women and men who were widowed is very small. In fact, only 4 men and 19 women in the entire dataset have been widowed. These small sample sizes likley explain at least some of the high irregularity of the result regarding widows compared to other marital status groups.
+
+This is a fair bit larger than the `r format(abs(round(summary(sex.marital.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.marital.lm)$coef["sexMale:marital.statusMarried", "Estimate"], digits = 0 )), big.mark = ",")` dollar difference for married men and women who appear most frequently and in our model, and the difference is statistically significant. 
+
+But both outsize the only `r format(abs(round(summary(sex.marital.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.marital.lm)$coef["sexMale:marital.statusSeparated", "Estimate"], digits = 0 )), big.mark = ",")` dollar income gap between men and women who are classified as separated. While the income gap persists across all marital statuses, the relative size of that income gap is heavily dependent on the specifics of the marital status.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and marital status
+plot(sex.marital.lm)
+```
+
+**Residual vs Fitted Plot**
+
+The residual vs. fitted plot continues to show that, for the lower fitted values, there is clustering around 0 and as the fitted values increase,  deviation away from a residual of 0 increases, suggesting that this model is still overestimating income in lower income brackets. However, adding the interaction variable between sex and marital status does seem to correct much of the overestimation of income in the higher brackets.
+
+
+**Normal QQ Plot**
+
+The normal QQ plot shows a mostly similar trend to the residual vs. fitted plot in  Models 2 and 3, but as the residual vs. fitted plot alludes to there is measurable correction for incomes in the higher tail of the range, but there is still a trend of significant deviation.
+
+**Scale-Location Plot**
+
+As the fitted values increase, the variance still increases steadily like Model #2 and  #3 but the increase is sharper at the bottom of the range and slightly flatter at the top.
+
+
+**Outliers & The Residuals vs Leverage Plot**
+
+The residuals vs leverage plot show that many of the outliers in Model #2 remain present but it corrects for some of the outliers toward the top of the income range with standardized residuals below 0.
+
+
+**Conclusions from the Plot**
+
+Adding the `sex*marital` coefficient appears to make small but meaningful changes at the higher end of the income spectrum that removing top coding from income didn't address. It did not solve some of the issues with the model at the lower end of the range, but the better fit at the top of the range suggest the addition of a `sex*marital` interaction term improves the model in a meaningful way.
+
+
+
+
+
+**Predicted Income Gender Gap between Different Marital Statuses with and without the Interaction Variable**
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+
+marital.income.gap.me <- nlsy_subset_notop %>%
+                         group_by(marital.status) %>%
+                         summarize(income.gap = mean(income[sex == "Male"], na.rm = TRUE) -
+                         mean(income[sex == "Female"], na.rm = TRUE))
+
+kable(marital.income.gap.me, digits = 0)
+
+```
+
+We see from looking at the predicted income gap from the main effects model that while the trend of the values remains the same, the addition of an interaction variable accounts for more of a significant gap in income between widowed men and women and offers a clearer picture of the income gap between married men and women.
+
+Considering the way in which the `marital*sex` interaction term improved the fit of the topcoded model (Model #2) at the top of the income range, the very high value of the widowed coefficient for men at `r format(abs(round(summary(sex.marital.lm)$coef["sexMale","Estimate"], digits = 0)), big.mark = ",")` dollars suggests that a small number of high earners who have been widowed were potentially skewing the results of the model slightly. 
+
+The main effects model does however catch the positive effect that separation has on womens income and the negative effect it has on mens and is one of the lone negative coefficients for men's income we've seen in our analysis.
+
+**Testing the Significance of Adding an Interaction Variable on the Sex * Marital Status Term**
+
+To determine if the effects of the addition of the `sex^marital` coefficient to the model were statistically significant we ran an ANOVA test comparing our two models.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+anova(all.var.lm2.notop, sex.marital.lm)
+```
+
+We see that the p-value  of `r anova(all.var.lm2.notop, sex.marital.lm)$"Pr(>F)"[2]` meets the threshold required to reject the null hypothesis. Therefore  we can reject the null hypothesis that the income gap between men and women is the same across all marital statuses and instead conclude that marital status has a statistically significant effect on the income gap between the sexes. 
+
+
+
+
+#### Model 7: Distilling the Impact of Education on Income Across Sexes
+
+
+**Is the effect of greater education statistically significant?**
+
+The most obvious factor for variance in income between individuals both intuitively and from the tabular summaries and plots above is education. It appears from looking at other models that the difference in income scales upward as you receive more education, so we decided to look further into the highest degree held variable to better understand the effect education has on income for the different sexes. The first question we asked is if education is statistically significant and if so, how significant is it?
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+all.var.lm2.notop.xedu <- all.var.lm2.notop
+
+all.var.lm2.notop.xedu <- update(all.var.lm2.notop.xedu, . ~ . - highest.degree.earned)
+
+anova(all.var.lm2.notop.xedu, all.var.lm2.notop)
+
+```
+
+When we run the ANOVA test we see the p-value of `r anova(all.var.lm2.notop.xedu, all.var.lm2.notop)$"Pr(>F)"[2]` is sufficiently small for us to say that your highest degree earned is a highly statistically significant predictor of income, and is strongly influencing our model.  
+
+
+
+**Adding an Interaction Term Between Sex and Highest Degree Earned**
+
+
+The tabular summaries and plots above indicate a wide variation between educational background of respondents. While it is clear that education significantly affects income, as the ANOVA test confirmed, the nuances of how specific educational backgrounds affect income is less clearly discernible from the data. To better understand this we added an interaction variable for `sex * highest.degree.earned` to see how educational background interacts with sex to influence our model.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and number of times incarcerated
+sex.edu.lm <- update(all.var.lm2.notop, . ~ . + highest.degree.earned * sex)
+kable(coef(summary(sex.edu.lm)), digits = c(0,0,2,4))
+```
+
+**Reviewing the Income Gender Gap by Educational Attainment**
+
+Adding the interaction of `sex * highest.degree.earned` shows that while the income gap by sex persists at all degrees earned, education can shrink it considerably. This appears to be universal with the exception of earning a PhD where the predicted income gap between a male PhD and female PhD is `r  format(abs(round(summary(sex.edu.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.edu.lm)$coef["sexMale:highest.degree.earnedPhD", "Estimate"], digits = 0)), big.mark = ",") ` dollars. This result is not statistically significant. 
+
+However, the income gap based on sex decreases notably for masters degrees at `r format(abs(round(summary(sex.edu.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.edu.lm)$coef["sexMale:highest.degree.earnedMasters", "Estimate"], digits = 0)), big.mark = ",")  ` dollars and for professionals degrees at `r format(abs(round(summary(sex.edu.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.edu.lm)$coef["sexMale:highest.degree.earnedProfessional Degree (DDS, JD, MD)", "Estimate"], digits = 0)), big.mark = ",")` dollars. 
+
+The data also suggests that racial bias runs deep. Despite the presence of the interaction variable between `sex * highest.degree.earned` reducing the Hispanic coefficient to just 49 dollars and removing its statistical significance, Black men and women can still expect to make `r format(abs(round(summary(sex.edu.lm)$coef["raceBlack","Estimate"], digits = 0)), big.mark = ",")` dollars less than their Non-Black/Non-Hispanic counterparts and the result remains highly statistically significant.
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Adding a interaction term between sex and highest degree earned
+plot(sex.edu.lm)
+```
+
+
+
+**Residual vs Fitted Plot**
+
+The residual vs. fitted plot shows  for the lower fitted values, there is clustering around 0 and as the fitted values increase,  deviation away from a residual of 0 increases, this is very similar to Model #2, but the deviation appears to be slightly more pronounced.
+
+
+
+**Normal QQ Plot**
+
+The normal QQ plot shows an almost identical match to Model #2, suggesting that education already has a great degree of influence on the model and is accounted for in Model #2. It is difficult to find any noticable variation on either upper or lower tail of the range.
+
+
+**Scale-Location Plot**
+
+As the fitted values increase, the variance still increases steadily very similarly to  Model #2 and #3 but the trends present seem to have shifted slightly rightward, and show the most variation from Models 2 and 3 in the upper end of the income range.
+
+**Outliers & The Residuals vs Leverage Plot**
+
+The residuals vs leverage plot show that many of the outliers in Model #2 clustered around 0 have a greater spread suggesting more leverage than in the initial model.
+
+
+
+**Conclusions from the Plot**
+
+Adding the `sex*education` coefficient appears to make very slight changes toward the lower and upper ends of the range with some outliers having additional leverage in the model with the interaction coefficient than without, but the addition of the coefficient does little to correct exisiting issues with the model and appears to be largely redundant.
+
+
+
+**Predicted Income Gender Gap between Different Educational Attainment Levels with and without the Interaction Variable**
+
+We see from looking at the predicted income gap regarding education from the main effects model that the values are actually quite close to what we saw in our model with the exception of the PhD education value, therefore this interaction term between `sex * highest.degree.earned` may be redundant.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Testing the statistical significance of race on topcoded income data
+
+income.gap.edu.me <- nlsy_subset_notop %>%
+                     group_by(highest.degree.earned) %>%
+                     summarize(income.gap = mean(income[sex == "Male"], na.rm = TRUE) -
+                     mean(income[sex == "Female"], na.rm = TRUE))
+
+kable(income.gap.edu.me, digits = 0)
+```
+
+The estimates in income gaps between men and women of different educational backgrounds is largely accurate. These findings are similar to the findings in our model with the `sex*education` interaction variable. Education tends to cut the income gap slightly, but it underestimates the effect of a masters degree in reducing income inequality with the interaction model showing an inequality of  `r format(abs(round(summary(sex.edu.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.edu.lm)$coef["sexMale:highest.degree.earnedMasters", "Estimate"], digits = 0)), big.mark = ",")  ` dollars and the main effects model estimating an inequality of 13,362 dollars and similarly it underestimates the effect of a professional degree with the interaction model showing an income inequality for professional degrees of `r format(abs(round(summary(sex.edu.lm)$coef["sexMale","Estimate"], digits = 0) + round(summary(sex.edu.lm)$coef["sexMale:highest.degree.earnedProfessional Degree (DDS, JD, MD)", "Estimate"], digits = 0)), big.mark = ",")` dollars as opposed to the 17,290 dollars estimated by the main effects model.
+
+
+
+
+**Testing the Significance of Adding an Interaction Variable on the Sex * Highest Degree Earned Status Term**
+
+To test whether a `sex * highest.degree.earned` interaction variable is redundant we tested the new model against our original main effects model with an ANOVA test.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+anova(all.var.lm2.notop, sex.edu.lm)
+```
+
+We see that the p-value  of `r anova(all.var.lm2.notop, sex.edu.lm)$"Pr(>F)"[2]` is not even close to the threshold required to reject the null hypothesis. Therefore, we fail to reject the null hypothesis that the income gap between men and women is the same across similar educational attainment.
+
+
+
+
+
+### Discussion  
+
+#### Main Conclusions
+
+The variables for which there appeared to be a statistically significant impact on income (according to the second model in which the values were not topcoded) were:
+1. `sex`
+2. `num.times.incarc`
+3. `residential.mom.highest.grade.completed`
+4. `race`, if the respondent is Black
+5. `highest.degree.earned`  and, 
+6. `marital.status`, if the respondent is married, and
+7. `education`.
+
+When running our first linear regression model on the dataset with topcoded income variables, there were some significant issues with the fit of the model to the data. Removing the topcoded values was helpful in rectifying many of those problems. Despite the noticeable improvements, however, issues remained with residuals toward the top and bottom of the income range not fitting the model.
+
+In order to address those issues, we looked at some of the most statistically significant factors effecting income and reviewed the data from each. After an initial review we saw significant effects from `num.times.incarc`, `longest.length.incarc.months`, `race`, `marital.status`, and `education` in income discrepancies based on sex. We ran regressions on each of these variables and created interaction terms with sex to see the effect.
+
+**Models 3 & 4: Number of Times Incarcerated and Length of Incarceration**
+
+From the results of the regression, it appears that, despite more men having a criminal history and being incarcerated longer than women, this did not result in a statistically significant difference in income between men and women in the sample of the dataset that was examined. 
+
+**Model 5: Race**
+
+Across all models except, Model #1, a pattern of statistically significant results of lower incomes persisted for Black respondents. Even when interacting race and sex, this pattern persisted. This was not true for other racial groups, suggesting Black respondents face patterns of discrimination which effects their income even when controlling for other factors.
+
+**Model 6: Marital Status**
+
+The results indicate that marital status does result in a statistically significant difference in earnings between men and women and that the difference in earnings is not uniform across the various marital statuses, with female widowers seeing a steeper drop in earnings than their male counterparts, and women who are separated seeing a boost in income where their male counterparts saw a steep drop.
+
+The addition of the `marital.status*sex` term corrected for some of the deviations from the model at the top of the income range and the combination of the removal of top coding from the income variable and addition of the interaction term `marital.status*sex` produced our most accurate model. 
+
+However, the small sample size of widowed and separated participants likely effects the reliability of these results.
+
+**Model 7: Education**
+
+We additionally see that education is the most effective way to increase income for both men and women. Specifically, as educational attainment rises, the income gap on the basis of sex generally shrinks. However, there are diminishing returns to educational attainment, as the income gap between men and women is greatest between male and female PhDs.
+
+#### Other Potential Confounders
+
+The geographical region in which this analysis was done could serve as a confounder in the models. It appeared that most of the participants selected for this study appeared to have lived (at the age of 12) in an urban area, which could have influenced the kinds of resources they had access to. It also would have been helpful to have information on the types of crimes that respondents had committed (i.e. misdemeanors, white collar crimes, felonies) to get a better understanding of the influence of criminal history and gender on income. There are greater barriers to entry in the job market for individuals who have felonies than misdemeanors which could have explained some of the outlier behavior we observed, in terms of the individuals who had substantial incarceration histories but had high incomes.
+
+Another challenge with this dataset is the time dimension. Most variables are collected at a specific point in time. For example, the urban vs. rural variable is specific to where the respondent lived when they were 12. It is possible that residence type has a stronger impact later in life, but this information wasn't collected.
+
+Another variable worth discussing is citizenship. The definition of citizenship in the codebook is tied to birthplace. However, respondents could be born outside of the U.S. and be a U.S. citizen. These definitions challenge our model findings for citizenship status.
+
+Variables regarding the presence of children in the household offered only limited context on how children might affect income and did not account for adoption, or children with special needs. Additionally information on age of the children in the house being limited to 6 represents a limiting factor toward understanding the effect childcare has on income. 
+
+#### Model Soundness
+
+
+Some of our results had clear trends that can be expressed with a reasonable degree of confidence. Results showing discrepancies in income between men and women across racial background, educational attainment, and incarceration status were persistent. There was also a persistent trend showing discrepancies in income on the basis of racial/ethnic background. While these results appear for all groups that were Non-Black/Non-Hispanic, they were most statistically significant for Black respondents. This result was consistent. The sample size of Black respondents was sufficient to make a strong argument that racial discrimination against Black respondents has a statistically significant effect on income. 
+
+In many cases where there were significant results skewing the original model, they came from groups with small sample sizes. Analysis on groups like widows, Mixed Race, Non-Hispanic persons, people with lengthy incarcerations, and men and women with multiple children require greater analysis with a larger sample size before a confident assertion of the results found could be stated. 
+
+Our models do a reasonably good job of accommodating these questions around sample size, but limitations exist in some areas where troubling trends exist and need to be further studied.
+
+Despite some of the limitations of the dataset, the findings of our analysis could start a conversation about the stark differences in income according to gender. These conversations could allow policymakers to begin to think about potential avenues for intervention that could curb the effect of this trend.
+
+
