@@ -6,17 +6,16 @@ Created on Fri Oct 23 20:41:54 2020
 @author: tobijegede
 """
 
-
-#Cleaner Version of National County Jail Estimates Data 
-
 #----------- DATA SOURCES ------------------ #
 # CENSUS DATA  = https://www.census.gov/data/tables/time-series/demo/popest/2010s-counties-detail.html
-# COUNTY JAIL DATA (SPEFICICALLY, 2013 CENSUS OF JAILS = https://www.bjs.gov/index.cfm?ty=dcdetail&iid=254 
+#In order to get the same results as I did, you'll need to download the following files from the above website:
+# 1. cc-est2019-alldata-42.csv. #census data for PA counties
+# 2. cc-est2019-alldata.csv #census data for all counties in the USA
+# COUNTY JAIL DATA (BASED ON HTE 2013 CENSUS OF JAILS = https://www.bjs.gov/index.cfm?ty=dcdetail&iid=254)
 
 
-# ----- IMPORTING THE DATA ------------ # 
-#def main():
-    #importing Census Data for Pennslyvania
+# ----- IMPORTING THE DATA FOR PENNSYLVANIA COUNTY POPULATION CENSUS ------------ # 
+
 import pandas as pd
 gen_pa_census = pd.read_csv('/Users/tobijegede/Documents/PghD4BL/cc-est2019-alldata-42.csv')
 
@@ -26,8 +25,6 @@ sub_gen_pa = gen_pa_census[["COUNTY", "STNAME" ,"CTYNAME", "YEAR", "AGEGRP", "TO
 
 
 # ------ GETTING THE POPULATION COUNTS IN ALLEGHENY COUNTY FOR 2017, 2018, & 2019 ------- #
-#def popCountByYear():
-
 
 #General Allegheny County subset of Data
 alleg_count = sub_gen_pa[sub_gen_pa['COUNTY'] == 3]
@@ -106,12 +103,6 @@ black_max_19 = ac_percent_black_19 + 5.0
 
 #----------- ALL UNITED STATES DATA ---------------------------#
 
-
-#Change to this instruction when sharing the data with other people
-#filename1 = str(input("Please provide the full path for where you have the Census Data for All United States County Populations stored on your device. If this dataset is not already downloaded, please go to the Census webstie and download the cc-est2019-alldata.csv file. ex: '/Users/tobijegede/Documents/PghD4BL/cc-est2019-alldata.csv: "))
-
-
-
 gen_usa_census = pd.read_csv('cc-est2019-alldata.csv', encoding = 'ISO-8859-1')
 
 
@@ -124,61 +115,21 @@ sub_gen_usa = gen_usa_census[["COUNTY", "STNAME" ,"CTYNAME", "YEAR", "AGEGRP", "
 total_pop_by_county_usa_19 = sub_gen_usa[(sub_gen_usa['AGEGRP'] == 0) & (sub_gen_usa['YEAR'] == 12)]
 
 
+#Creating a  Dataframe that only includes counties with populations that US Counties with a population  within +/- 200,000 of Allegheny County's Population in 2019
 simi_size_count_usa_19 = total_pop_by_county_usa_19[(total_pop_by_county_usa_19['TOT_POP'] >= pop_min_19) & 
                                                    (total_pop_by_county_usa_19['TOT_POP'] <= pop_max_19)]
 
+#Creating two new columns in the "simi_size_count_usa_19" dataframe that calculate the black and white male population percentages
 simi_size_count_usa_19['PERCENT_WHITE'] = round(simi_size_count_usa_19['WA_MALE']/simi_size_count_usa_19['TOT_POP'] * 100, 2)
 simi_size_count_usa_19['PERCENT_BLACK'] = round(simi_size_count_usa_19['BA_MALE']/simi_size_count_usa_19['TOT_POP'] * 100, 2)
 
 
-
+#Further subsets the data to only include those counties with a black male and white male percentage within +/- 5% of Allegheny County's black and white male population
 simi_size_count_usa_19 = simi_size_count_usa_19[(simi_size_count_usa_19['PERCENT_WHITE'] >= white_min_19) & (simi_size_count_usa_19['PERCENT_WHITE'] <= white_max_19)]
 simi_size_count_usa_19 = simi_size_count_usa_19[(simi_size_count_usa_19['PERCENT_BLACK'] >= black_min_19) & (simi_size_count_usa_19['PERCENT_BLACK'] <= black_max_19)]
 
-
-
-print(simi_size_count_usa_19)
-
-
-#all of the counties in the USA in 2017 with a similar size as Allegheny County in 2017
-#print(simi_size_count_usa_17)
-
-#create a csv file with this information
-    #1. Remove Allegheny County from this dataset
-#simi_size_count_usa_19 = simi_size_count_usa_19.drop(512069)
-
+#Exports the dataframe containing information about the counties that are similar in size and racial demographics to a .csv file
 simi_size_count_usa_19.to_csv('similar_countiesbypop_Allegheny_2019.csv')
-
-#print(simi_size_count_usa_19) #simi_size_count_usa_19.shape[0])
-
-
-#------- COMPARABLE COUNTES in 2013 ------------- # (In order to do the BJS 2013 comparison)
-
-'''
-#Creating a list of total population by county in 2013
-total_pop_by_county_usa_13 = sub_gen_usa[(sub_gen_usa['AGEGRP'] == 0) & (sub_gen_usa['YEAR'] == 6)]
-
-
-#New Comparison for 2013
-pop_min_13 = ac_totpop_2013 - 200000
-pop_max_13 = ac_totpop_2013 + 200000
-
-simi_size_count_usa_13 = total_pop_by_county_usa_13[(total_pop_by_county_usa_13['TOT_POP'] >= pop_min_13) & 
-                                                   (total_pop_by_county_usa_13['TOT_POP'] <= pop_max_13)]
-
-
-#Additional Subsetting of hte Data according to the demographic information 
-
-#all of the counties in the USA in 2017 with a similar size as Allegheny County in 2017
-#print(simi_size_count_usa_13)
-
-#create a csv file with this information
-    #1. Remove Allegheny County from this dataset
-#simi_size_count_usa_13 = simi_size_count_usa_19.drop(512069)
-
-#simi_size_count_usa_13.to_csv('similar_countiesbypop_Allegheny_2013.csv')
-
-#print(simi_size_count_usa_13)# simi_size_count_usa_19.shape[0], simi_size_count_usa_13.shape[0])  '''
 
 
 
@@ -187,7 +138,7 @@ simi_size_count_usa_13 = total_pop_by_county_usa_13[(total_pop_by_county_usa_13[
 nat_county_jail = pd.read_csv('CountyJail_Info_2013.tsv', sep = '\t')
 
 
-sub_nat_county_jail = nat_county_jail[["NAME", "TOTPOP", "BLACK", "WHITE"]] #"HISP", "AIAN", "ASIAN"]]
+sub_nat_county_jail = nat_county_jail[["NAME", "TOTPOP", "BLACK", "WHITE"]]
 
 #Creating Black Population Percentage
 sub_nat_county_jail = sub_nat_county_jail.assign(PERCENT_BLACK=sub_nat_county_jail['BLACK'] / sub_nat_county_jail['TOTPOP'] * 100)
@@ -195,20 +146,12 @@ sub_nat_county_jail = sub_nat_county_jail.assign(PERCENT_BLACK=sub_nat_county_ja
 #Creating White Population Percentage
 sub_nat_county_jail  = sub_nat_county_jail.assign(PERCENT_WHITE=sub_nat_county_jail['WHITE'] / sub_nat_county_jail['TOTPOP'] * 100)
 
-
-
-#OMITTED CATGORIES: "JURISID", "JURISSIZE" "ADULTF","TOTPOP_FLAG", "ADULTM"
-
-#print(sub_nat_county_jail)
-
-# Jail Population at the Similar Sized Counties as Allegheny County
-
+#---- FINDING THE JAIL POPULATIONS OF THE SIMILAR COUNTIES TO ALLEGHENY COUNTY-------#
 
 #isolate just the county names 
 county_names = simi_size_count_usa_19['CTYNAME'].tolist()
 
 #Removing the "County" at the end of the list of counties 
-
 new_county_names = []
 
 for i in range(len(county_names)):
@@ -216,16 +159,6 @@ for i in range(len(county_names)):
     new_county_names.append(new_name) 
     
 #print(new_county_names)
-
-
-#Getting Rid of Franklin & Orange Counties that are not in Ohio and Florida (respectively)
-#c
-#new_county_names.remove('Orange')
-#new_county_names.append('Franklin County Correctional Center')
-#new_county_names.append('Orange County Corrections Department')
-#print(new_county_names)
-#new_county_names_edit = new_county_names_edit.remove('Orange')
-
 
 pattern = '|'.join(new_county_names)
 
@@ -270,8 +203,7 @@ jail_pop_similar_counties.to_csv('jailpopulations_similarcounties_2013.csv')
 jailtotpop_bycounty.to_csv('Aggregate Jail Population By County_2013.csv')
 
 
-#if __name__ == '__main__':
- #   main()
+
 
 
 
