@@ -1,0 +1,1703 @@
+---
+title: "eCard Customer Analysis"
+subtitle: "95791 Data Mining - S21 A3"
+author: "Group G: Jen Andre (jandre), Tobi Jegede (toj), Callie Lambert (cmlamber)"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: lumen
+    highlight: pygments
+---
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+library(ggplot2)
+library(ggcorrplot)
+library(GGally)
+library(leaps)
+library(splines)
+library(plyr)
+library(gam)
+library(glmnet)
+library(tidyverse)
+library(lubridate)
+library(knitr)
+library(tree)
+library(rpart)
+library(randomForest)
+library(pROC)
+library(partykit)
+library(jtools)
+library(broom.mixed)
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+options(scipen = 4)
+
+```
+
+### Introduction
+
+#### Context and Purpose
+
+Our client is an online greeting card company that charges a subscription fee of $1 per month for unlimited access to their eCard website. The purpose of this report is to advise this client on various aspects of their customer base, including the life-time value (LTV) of their customers.
+
+The LTV of a customer is the total revenue earned by the company from that customer. In the context of this card company, the LTV of a customer is $1 (the monthly subscription fee) times the number of months subscribed.
+
+We aim to address the following primary objectives:
+
+1. Develop an attrition model, to predict whether a customer will cancel their subscription in the near future.
+
+2. Develop a model for estimating the LTV of a customer.
+
+3. Develop a customer segmentation scheme including the identification of sleeping customers (those that are no longer active but have not cancelled their account).
+
+#### Data
+
+The base data set contains four years of daily usage information for 10,000 customers, for the period from 1/1/2011 through 12/31/2014. The fields are as follows:
+
+* `id`: A unique user identifier.
+* `status`: Subscription status where 0 = new, 1 = open, and 2 = cancellation event.
+* `gender`: User gender where M = male and F = female.
+* `date`: Date user logged into the site.
+* `pages`: Number of pages visited by user 'id' on date 'date'. This variable is discrete because users can only visit whole numbers of pages.
+* `onsite`: Number of minutes user 'id' spent on the website on date 'date'. This variable is continuous.
+* `entered`: Flag indicating whether or not user entered the send order path on date 'date'.
+* `completed`: Flag indicating whether or not the user completed the order (sent an eCard) on date 'date'.
+* `holiday`: Flag indicating whether or not at least one completed order included a holiday-themed card on date 'date'.
+
+#### Report Outline
+
+The structure of this report is as follows:
+
+* Exploratory Data Analysis
+* Methodology
+* Key Findings and Takeaways
+* References
+
+### Exploratory Data Analysis
+
+In this section, we will describe the data and any steps taken to clean or modify the original data set. We will begin by examining summary statistics and checking for missing values. Next, we will present visualizations exploring specific fields and relationships in the daily usage data. Finally, we will describe the creation of a customer-level data set and explore its aggregated fields.
+
+#### Data Set Characteristics
+
+```{r, include = FALSE, echo = FALSE, message = FALSE}
+
+# load data
+ltv <- read.csv("ltv.csv")
+
+```
+
+```{r, include = FALSE, echo = FALSE, message = FALSE}
+
+# changing the date formatting in the data set
+ltv <- ltv %>% 
+  mutate(date = lubridate::ymd(ltv$date))
+
+# checking for NA values
+sapply(ltv, function(x) sum(is.na(x)))
+
+```
+
+```{r, include = FALSE, echo = FALSE, message = FALSE}
+
+# summarize the data
+summary(ltv)
+
+```
+
+The daily usage data set has `r format(nrow(ltv), big.mark = ",")` rows and `r ncol(ltv)` columns. The data set is clean and has no missing values, so no additional cleaning steps are required.
+
+There are `r format(length(unique(ltv$id)), big.mark = ",")` unique customers represented in the daily usage data. All `r format(length(unique(ltv$id[ltv$status == 0])), big.mark = ",")` of these customers begin their subscription with the company within this four-year time period. Of these, `r format(length(unique(ltv$id[ltv$status == 2])), big.mark = ",")` customers have ended their subscription with the company by the end of this time period. This leaves `r format(length(unique(ltv$id[ltv$status == 0])) - length(unique(ltv$id[ltv$status == 2])), big.mark = ",")` customers whose subscription is still ongoing at the end of 2014. Of the total `r format(length(unique(ltv$id)), big.mark = ",")` unique customers, `r format(length(unique(ltv$id[ltv$gender == "F"])), big.mark = ",")` are female and `r format(length(unique(ltv$id[ltv$gender == "M"])), big.mark = ",")` are male.
+
+The median number of pages visited by a user on a given date is `r median(ltv$pages)` and the mean is `r round(mean(ltv$pages), 2)`. The median minutes spent on the site by a user on a given date is `r median(ltv$onsite)` and the mean is `r round(mean(ltv$onsite), 2)`. In total, `r round(mean(ltv$entered) * 100, 2)`% of visits result in a customer entering the send order path, `r round(mean(ltv$completed) * 100, 2)`% of visits result in a customer completing an order, and `r round(mean(ltv$holiday) * 100, 2)`% of visits result in a customer completing an order with a holiday-themed card.
+
+#### Summarizing and Exploring Daily Usage Data
+
+In this section, we will display some tables and charts summarizing and exploring the site usage data. These plots demonstrate when customers are most active throughout the year, both in terms of site visits and completed orders.
+
+Each year, there are 3 spikes in the number of visits to the site: February, April through July, and October through December. The spike in the last 3 months of the year is the greatest traffic seen on the site. These months correspond to major American holidays: Valentine's Day, Easter, Mother's Day, Father's Day, Fourth of July, Halloween, Thanksgiving, and Christmas. It's worth noting that the traffic in March and April is variable depending on the timing of Easter in a given year.
+
+```{r, include = FALSE, echo = FALSE, message = FALSE}
+
+#plotting the event, visit, and order information over time (by month) to better understand peaks throughout the year for each metric
+ltv.time <- ltv %>%
+  filter(status == 1 | status == 0) %>%
+  group_by(month = floor_date(date, "month")) %>%
+  summarize(events = n(), pages.visited = sum(pages), orders = sum(completed), holiday.orders = sum(holiday), .groups = "keep")
+```
+
+```{r, echo = FALSE, message = FALSE}
+
+ggplot(data = ltv.time, aes(month, pages.visited)) +
+  geom_line() +
+  ggtitle("Total Pages Visited by Month") +
+  xlab("Month") +
+  ylab("Pages Visited")
+
+```
+
+The trend in monthly orders closely aligns with pages visited. As seen in the graph below, the spikes in orders throughout the year are due largely to spikes in the number of orders that included at least one holiday card. The proportion of orders that included at least one holiday card is shown in green on the graph.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+ggplot(data = ltv.time, aes(month, orders), color =) +
+  geom_area(fill = "8da0b8") +
+  geom_area(data = ltv.time, aes(month, holiday.orders), fill = "#009E73" ) +
+  xlab("Year") +
+  ylab("Total Orders") +
+  ggtitle("Total Orders by Month, with Holiday Orders as a Share of All Orders")
+
+```
+
+As users visited more pages in their session, the likelihood that they completed an order also increased. As seen in the graph below, approximately 50% of users who visited 5 pages in their session completed an order. In comparison, more than 90% of the users who visited at least 8 pages completed an order in their session. Note that users visiting 0 pages in a visit is a cancellation event.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+ggplot(ltv, aes(x = pages, fill = factor(completed))) +
+  geom_bar() +
+  xlab("Number of Website Pages Visited") +
+  ylab("Count of User Sessions") + 
+  ggtitle("Distribution of Pages Visited") + 
+  scale_fill_discrete(name = "Order Completed", labels = c("No", "Yes"))
+
+```
+
+As users spend more time on the site, a greater share complete an order. Of the sessions where a user spent more than 30 minutes on the site, almost all completed an order in that session. Almost all sessions are less than 60 minutes, with the majority between 15-30 minutes.
+
+```{r, echo = FALSE}
+#could include but findings might be redundant with content in introduction
+ggplot(ltv, aes(x = onsite, fill = factor(completed))) +
+  geom_histogram(binwidth = 5) +
+  xlab("Time Spent on Site (Minutes)") +
+  ylab("Count of Users") + 
+  ggtitle("Distribution of Time Spent on Site")  + 
+  scale_fill_discrete(name = "Order Completed", labels = c("No", "Yes"))
+```
+
+
+In summary, the exploratory data analysis reveals some interesting trends about usage of the site:
+
+* Website traffic and completed orders spike during holidays. 
+
+* As customers visit more pages in a single session, they are more likely to complete an order.
+
+* As customers spend more time on the site, they are more likely to complete an order.
+
+#### The Creation of Customer-Level Data
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+# First, we started by creating new variables to aggregate information at the customer level
+ltv.agg <- ltv %>%
+  group_by(id) %>%
+  mutate(cancel = ifelse(status == 2,1,0),                         # flag = 1 if customer has a cancellation event
+         
+         avg.num.pages = mean(pages),                              # avg number of pages visited by user per day visited
+         avg.minutes = mean(onsite),                               # avg number of minutes spent by user per day visited
+         
+         num.pending.orders = sum(entered),                        # number of visits the user entered the send order path
+         num.completed = sum(completed),                           # number of visits the user completed an order
+         num.holiday.cards = sum(holiday),                         # number of visits the user ordered a holiday card
+         num.notcompleted = num.pending.orders - num.completed,    # number of visits the user entered the order path but did not complete an order
+         num.visits = n(),                                         # total number of visits
+         
+         length.sub = (lubridate::as_datetime(max(date)) -
+                         lubridate::as_datetime(min(date))) %>% 
+                            as.duration() %>%
+                            as.numeric("months"),                  # number of months of subscription
+         length.sub.ceiling = ifelse(lubridate::as_datetime(max(date)) - 
+                                       lubridate::as_datetime(min(date)) == 0, 
+                                     1, ceiling(length.sub)),      # months of subscription, rounded up
+         
+         prop.pending.orders = num.pending.orders / num.visits,    # proportion of user's visits in which they entered the send order path
+         prop.completed = num.completed / num.visits,              # proportion of user's visits in which they completed an order
+         prop.holiday.cards = num.holiday.cards / num.visits,      # proportion of user's visits in which they ordered a holiday card
+         prop.notcompleted = num.notcompleted / num.visits,        # proportion of user's visits in which they entered the order path but did not complete an order
+         
+         avg.visits.month = num.visits / length.sub.ceiling,       # average number of visits per month of subscription
+         
+         ltv = 1 * length.sub.ceiling                              # customer life-time value ($1 times number of months subscribed, rounded up)
+         )
+
+# With the new columns, we now filter to only have 1 row per customer
+ltv.unique <-
+  ltv.agg %>%
+  select(id, gender, cancel, avg.num.pages, avg.minutes, num.pending.orders, num.completed, 
+         num.holiday.cards, num.notcompleted, num.visits, length.sub, length.sub.ceiling,
+         prop.pending.orders, prop.completed, prop.holiday.cards, prop.notcompleted, 
+         avg.visits.month, ltv) %>%
+  filter(row_number() == n())
+
+```
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+# Summary
+summary(ltv.unique)
+
+```
+
+```{r, include = FALSE, warning = FALSE, message = FALSE}
+
+# Create cancel subset for later use 
+ltv.unique.cancel <- ltv.unique[ltv.unique$cancel == 1,]
+
+```
+
+For some of our analyses, we need data at the customer level rather than daily usage level. We therefore create a data set representing the `r format(nrow(ltv.unique), big.mark = ",")` customers. This data set has `r ncol(ltv.unique)` variables. Fields `id` and `gender` are kept unchanged from the original data set. The other variables are created as follows:
+
+* `cancel`: Flag indicating whether or not the customer has a cancellation event within this time period.
+
+* `avg.num.pages`: Average number of pages visited by customer per day visited.
+
+* `avg.minutes`: Average number of minutes spent by customer per day visited.
+
+* `num.pending.orders`: Number of visits the customer entered the send order path.
+
+* `num.completed`: Number of visits the customer completed an order.
+
+* `num.holiday.cards`: Number of visits the customer ordered a holiday card.
+
+* `num.notcompleted`: Number of visits the customer entered the order path but did not complete an order.
+
+* `num.visits`: Total number of visits.
+
+* `length.sub`: Total number of months of subscription.
+
+* `length.sub.ceiling`: Total months of subscription, rounded up to full months (a user must pay for a full month, even if they cancel early).
+
+* `prop.pending.orders`: Proportion of customer's visits in which they entered the send order path.
+
+* `prop.completed`: Proportion of customer's visits in which they completed an order.
+
+* `prop.holiday.cards`: Proportion of customer's visits in which they ordered a holiday card.
+
+* `prop.notcompleted`: Proportion of customer's visits in which they entered the order path but did not complete an order.
+
+* `avg.visits.month`: Average number of visits per month.
+
+* `ltv`: Customer life-time value ($1 X `length.sub.ceiling`).
+
+#### Summarizing and Exploring Customer-Level Data
+
+In this section, we will display some tables and charts summarizing and exploring the customer-level data.
+
+##### Subscription Length and Customer Visit Behavior
+
+The average subscription length for all users is `r round(mean(ltv.unique$length.sub.ceiling), 0)` months. For users that have cancelled their subscription, the average subscription length was `r round(mean(ltv.unique$length.sub.ceiling[ltv.unique$cancel==1]),0)` months. On average, active users (those who have not cancelled) have a slightly lower subscription length, with an average of `r round(mean(ltv.unique$length.sub.ceiling[ltv.unique$cancel==0]),0)` months. 
+
+The plots below provide more information about customers' subscription length (`length.sub.ceiling`). The first shows a peak of users with a subscription length between 10 to 25 months. After 25 months, the number of customers begins to decrease. Note here that the maximum subscription length possible is 48 months given the timeframe of the dataset.
+
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+#Histogram of subscription length and count of customers
+ggplot(ltv.unique, aes(x = length.sub.ceiling)) +
+  geom_bar() +
+  xlab("Subscription Length") +
+  ylab("Count of Users") + 
+  ggtitle("Distribution of Subscription Length for all Customers") 
+```
+
+The second plot related to subscription length shows the subscription length along the horizontal axis. The blue bars show the proportion of customers at that subscription length who have cancelled their subscription. We can see that users who have cancelled account for a higher proportion of those with the medium length-subscriptions. This suggests that we should further investigate retention of users with a subscription length between 1-3 years.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+#Conditional density plot with subscription length and the proportion of those customers who have cancelled their subscription
+ggplot(ltv.unique, aes(length.sub.ceiling)) +
+  geom_histogram(aes(fill = factor(cancel)), binwidth = .5, position = "fill") +
+  xlab("Subscription Length") +
+  ylab("Proportion of Users") + 
+  ggtitle("Users' Subscription Length") + 
+  scale_fill_discrete(name = "Cancelled", labels = c("No", "Yes")) 
+
+```
+
+On average, users visited the site `r round(mean(ltv.unique$avg.visits.month), 2)` times per month. Users who haven't cancelled their subscription tend to visit the site slightly more than users who have cancelled. Active users visited the site an average of `r round(mean(ltv.unique$avg.visits.month[ltv.unique$cancel==0]), 2)` times per month, while cancelled users visited `r round(mean(ltv.unique$avg.visits.month[ltv.unique$cancel==1]), 2)` times per month. The boxplot below shows the distribution of the average number of visits for customers, segmented by customers' cancellation status.
+
+```{r, fig.height = 6, fig.width = 6, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Boxplot of average visits per month
+ggplot(data = ltv.unique, aes(x = avg.visits.month, fill = factor(cancel))) + 
+  geom_boxplot() +
+  xlab("Average Visits Per Month") +
+  ylab("Count") +
+  scale_fill_discrete(name = "Cancelled", labels = c("No", "Yes")) 
+```
+
+
+##### Customer Order Behavior
+
+Next, we'll explore some statistics and charts related to customer order behavior.
+
+The below histogram shows the distribution of `prop.pending.orders`. This field indicates the proportion of visits during which a customer enters the send order path. On average, customers create a pending order on `r round(mean(ltv.unique$prop.pending.orders), 2)*100`% of their visits to the site. The minimum proportion is `r round(min(ltv.unique$prop.pending.orders), 2)`, the median is `r round(median(ltv.unique$prop.pending.orders), 2)`, and the maximum is `r round(max(ltv.unique$prop.pending.orders), 2)`. A total of `r nrow(ltv.unique[ltv.unique$prop.pending.orders == 1,])` customers (`r round((nrow(ltv.unique[ltv.unique$prop.pending.orders == 1,]) / nrow(ltv.unique)), 2) * 100`%) enter the send order path on every visit.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+ggplot(data = ltv.unique, aes(x = prop.pending.orders)) + 
+  geom_histogram() +
+  ggtitle("Distribution of Proportion of Visits with Pending Order") +
+  ylab("Count") + xlab("Proportion of Visits with Pending Order")
+
+```
+
+The below histogram shows the distribution of `prop.completed`. This field indicates the proportion of visits during which a customer completes an order. On average, customers complete an order on `r round(mean(ltv.unique$prop.completed), 2)*100`% of their visits to the site. The minimum proportion is `r round(min(ltv.unique$prop.completed), 2)`, the median is `r round(median(ltv.unique$prop.completed), 2)`, and the maximum is `r round(max(ltv.unique$prop.completed), 2)`. A total of `r nrow(ltv.unique[ltv.unique$prop.completed == 1,])` customers (`r round((nrow(ltv.unique[ltv.unique$prop.completed == 1,]) / nrow(ltv.unique)), 2) * 100`%) complete an order on every visit.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+ggplot(data = ltv.unique, aes(x = prop.completed)) + 
+  geom_histogram() +
+  ggtitle("Distribution of Proportion of Visits with Completed Order") +
+  ylab("Count") + xlab("Proportion of Visits with Completed Order")
+
+```
+
+The below histogram shows the distribution of `prop.notcompleted`. This field indicates the proportion of visits during which a customer enters the send order path but does not complete an order. On average, customers fail to complete an order on `r round(mean(ltv.unique$prop.notcompleted), 2)*100`% of their visits to the site. The minimum proportion is `r round(min(ltv.unique$prop.notcompleted), 2)`, the median is `r round(median(ltv.unique$prop.notcompleted), 2)`, and the maximum is `r round(max(ltv.unique$prop.notcompleted), 2)`. A total of `r nrow(ltv.unique[ltv.unique$prop.notcompleted == 0,])` customers (`r round((nrow(ltv.unique[ltv.unique$prop.notcompleted == 0,]) / nrow(ltv.unique)), 2) * 100`%) never fail to complete a pending order.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+ggplot(data = ltv.unique, aes(x = prop.notcompleted)) + 
+  geom_histogram() +
+  ggtitle("Distribution of Proportion of Visits with Pending Order Not Completed") +
+  ylab("Count") + xlab("Proportion of Visits with Pending Order Not Completed")
+
+```
+
+The below histogram shows the distribution of `prop.holiday.cards`. This field indicates the proportion of visits during which a customer orders a holiday card. On average, customers order a holiday card on `r round(mean(ltv.unique$prop.holiday.cards), 2)*100`% of their visits to the site. The minimum proportion is `r round(min(ltv.unique$prop.holiday.cards), 2)`, the median is `r round(median(ltv.unique$prop.holiday.cards), 2)`, and the maximum is `r round(max(ltv.unique$prop.holiday.cards), 2)`. A total of `r nrow(ltv.unique[ltv.unique$prop.holiday.cards == 0,])` customers (`r round((nrow(ltv.unique[ltv.unique$prop.holiday.cards == 0,]) / nrow(ltv.unique)), 2) * 100`%) never order a holiday card.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+ggplot(data = ltv.unique, aes(x = prop.holiday.cards)) + 
+  geom_histogram() +
+  ggtitle("Distribution of Proportion of Visits with Holiday Card Order") +
+  ylab("Count") + xlab("Proportion of Visits with Holiday Card Order")
+
+```
+
+##### Customer Life-Time Value (LTV)
+
+Finally, we will explore some of the relationships between customer life-time value (LTV) and other variables. As noted previously, LTV is calculated as the $1 monthly subscription price times the number of months (rounded up) that a customer is subscribed. A customer must pay for an entire month, even if they cancel early.
+
+The below histogram shows the distribution of customer LTV. This plot includes only customers for which we have a conclusive LTV, i.e. those customers who have started and ended their subscription within the time frame of this data set. The distribution is slightly skewed right. The minimum LTV is $`r min(ltv.unique.cancel$ltv)`, the maximum is $`r max(ltv.unique.cancel$ltv)`, the median is $`r median(ltv.unique.cancel$ltv)`, and the mean is $`r round(mean(ltv.unique.cancel$ltv), 2)`.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Histogram of LTV for customers who cancel
+ggplot(data = ltv.unique.cancel, aes(x = ltv)) +
+  geom_histogram() +
+  ggtitle("Distribution of LTV Across Customers Who Start and End \nSubscription in this Time Period") +
+  ylab("Count") + xlab("LTV ($)")
+
+```
+
+We can also compare the LTV distribution across genders. The below boxplots indicate that LTV values for females are generally larger than for males. A t-test reveals that the average LTV for females ($`r round(mean(ltv.unique.cancel$ltv[ltv.unique.cancel$gender == "F"]), 2)`) is statistically significantly larger than the average LTV for males ($`r round(mean(ltv.unique.cancel$ltv[ltv.unique.cancel$gender == "M"]), 2)`).
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Boxplot of LTV, customers who cancel, by gender
+ggplot(data = ltv.unique.cancel, aes(x = ltv, fill = gender)) + 
+  geom_boxplot() +
+  ggtitle("Distribution of LTV For Customers Who Start and End \nSubscription in this Time Period, by Gender") +
+  ylab("Count") + xlab("LTV ($)") +
+  scale_fill_discrete(name = "Gender", labels = c("Female", "Male"))
+
+```
+
+```{r, include = FALSE, message = FALSE, warning = FALSE}
+
+t.test(ltv ~ gender, data = ltv.unique.cancel)
+
+```
+
+We can also examine the relationships between LTV and other variables. 
+
+The scatter plot below shows the relationship between LTV and the proportion of visits in which a customer orders a holiday card. There is an increasing trend. Customers with larger proportions of visits including a holiday card order tend to have higher LTV.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Scatter plot, LTV and prop.holiday.cards, customers who cancel
+ggplot(data = ltv.unique.cancel, aes(x = prop.holiday.cards, y = ltv)) + 
+  geom_point() +
+  ggtitle("Scatter Plot of LTV vs. Proportion of Visits With Holiday Card Order,\nFor Customers Who Start and End Subscription in this Time Period") +
+  xlab("Proportion of Customer Visits with Holiday Card Order") + ylab("LTV ($)")
+
+```
+
+The scatter plot below shows the relationship between LTV and customer-level average site visits per month. For the most part, there is no clear relationship between these variables. Customers with higher LTV generally visit the site the same number of times per month, on average, as customers with lower LTV. However, there is a decreasing relationship at very low levels of LTV. For customers with LTV of approximately $6 or less, LTV decreases as average visits per month increases.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Scatter plot, LTV and avg.visits.month, customers who cancel
+ggplot(data = ltv.unique.cancel, aes(x = avg.visits.month, y = ltv)) + 
+  geom_point() +
+  ggtitle("Scatter Plot of LTV vs. Customer Average Visits per Month,\nFor Customers Who Start and End Subscription in this Time Period") +
+  xlab("Customer Average Visits per Month") + ylab("LTV ($)")
+
+```
+
+There is a similar relationship between LTV and customer-level average number of pages visited per visit. At higher levels of LTV ($15 or more), there is no clear relationship between these variables, though there does seem to be less variation in average pages as LTV increases. At lower levels of LTV, customer LTV decreases as average number of pages visited increases.
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+
+# Scatter plot, LTV and avg.num.pages, customers who cancel
+ggplot(data = ltv.unique.cancel, aes(x = avg.num.pages, y = ltv)) + 
+  geom_point() +
+  ggtitle("Scatter Plot of LTV vs. Customer Average Pages per Visit,\nFor Customers Who Start and End Subscription in this Time Period") +
+  xlab("Customer Average Pages per Visit") + ylab("LTV ($)")
+
+```
+
+### Methodology
+
+In this section, we will review the data mining methods used to explore our three main objectives and describe the performance of these methods. This review will include descriptions of model selection and model validation processes. Finally, we will describe the final models used in our findings.
+
+#### Methodology: Attrition Model
+
+#### Summary Statistics for Customers with Subscription Cancellations
+
+In order to begin our analysis of customer subscription cancellation behavior, we began by looking at some summary statistics about these customers.
+
+``` {r, echo = FALSE}
+
+#Of those who have cancelled, what was do their demographics look like?
+
+#summary statistics 
+sum_cancel <-
+  ltv.unique %>% 
+  ungroup() %>%   #removes the grouping from ltv.unique
+  filter(cancel == 1) %>%
+  summarize("Number of Cancellations" = prettyNum(n(), big.mark = ","),
+            "Percent Women" = paste0(round(sum(gender == "F")/n() * 100, digits = 2), "%"),
+            "Percent Men" = paste0(round(sum(gender == "M")/n() * 100, digits = 2), "%"),
+            "Percent Orders with Holiday Cards" = paste0(round((sum(num.holiday.cards)/sum(num.completed))*100, digits = 0), "%"),
+            "Avg Subscription Length (months)" = mean(length.sub.ceiling))
+           
+  
+#kable(sum_cancel, format= "html")
+
+num.cancel <- sum(ltv.unique$cancel == 1)
+per.cancel <- (num.cancel/nrow(ltv.unique)) * 100
+avg.sub.length <- round(mean(ltv.unique$length.sub.ceiling), digits = 0)
+
+avg.cancel.sub.length <- round(sum_cancel$`Avg Subscription Length (months)`, digits = 0)
+
+  
+```
+Out of the `r prettyNum(nrow(ltv.unique), big.mark = ",")` unique customers in the dataset, `r prettyNum(num.cancel, big.mark = ",")` cancelled their subscription from `r min(ltv$date)` to `r max(ltv$date)`. This is roughly `r per.cancel`% of the population. 
+
+For the total population of `r prettyNum(nrow(ltv.unique), big.mark = ",")`, the average subscription length is `r avg.sub.length` months or `r round(avg.sub.length/12, digits = 1)` years . Of the `r prettyNum(num.cancel, big.mark = ",")` customers who have cancelled their subscriptions, their average subscription length is `r avg.cancel.sub.length` months or `r round(avg.cancel.sub.length/12, digits = 1)` years.
+
+ 
+After calculating general summary statistics for the customers who cancelled their subscription, we also wanted to explore if there was a temporal dimension that could explain subscription cancellation behavior.
+To conduct this analysis, we aggregated the data at the month level and found the number of cancellations in each month across the `r  round((max(ltv$date) - min(ltv$date) ) %>% as.duration() %>% as.numeric("years"), digits = 0)` years of data available in the dataset.
+
+Below, we plotted the number of cancellations against the month of the year. 
+
+
+```{r, echo = FALSE}
+
+#When were customers most likely to cancel their subscriptions in a given year?
+
+#creates new subset of data just with month data and the number of cancellations (status == 2) in each month
+ltv_time_cancel <- ltv %>%
+        group_by(month(date, label = TRUE)) %>%  #aggregate on the month level
+        mutate(num.cancellations = sum(status == 2)) %>% # number of cancellations
+        select("month(date, label = TRUE)", num.cancellations)
+
+#filters the data so that there is only one observation per month
+ltv_time_cancel  <-
+  ltv_time_cancel %>%
+   filter(row_number() == n())  %>%
+   rename(sub.month = "month(date, label = TRUE)") %>% # subscription month (aggregated across years)
+   arrange(sub.month)
+
+#plots the number of cancellations by the month of the year
+cancel.plot <- ltv_time_cancel %>%
+  ggplot(aes(x = sub.month , y = num.cancellations)) +
+  geom_line(group = 1) +
+  xlab("Subscription Month") +
+  ylab("Number of Subscription Cancellations") +
+  ggtitle("Subscription Cancellations over Time") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cancel.plot
+
+```
+
+Over the four years, the most striking trend that can be observed from the plot above is that the bulk of the cancellations in a given year occur in December. After observing this trend, we also wanted to know if there was a particular date range within December in which these cancellations typically occurred. The plot below shows the relationship between the day of the month of December and the corresponding number of cancellations per day, summed across the four years of data.
+
+
+```{r, echo = FALSE}
+#When within the month of December do the cancellations occur?
+
+dec_cancel <- ltv %>% 
+  filter(month(date) == 12) %>% #subsets the data to only look for December customer visits
+  group_by(month(date), day(date)) %>%  #groups the data by month & day
+  mutate(num.cancellations = sum(status == 2)) %>%  #finds the number of cancellations i.e. where status == 2
+  filter(row_number() == n())  # reduces dataset to only 31 observations
+  
+  
+dec_cancel <- dec_cancel %>%
+  select("month(date)", "day(date)", num.cancellations) %>% 
+  rename(day.of.month = "day(date)",  #renames the data columns
+         month.of.year = "month(date)") %>% 
+  arrange(day.of.month)
+
+
+#plot of December cancellations
+dec_cancel %>% 
+  ggplot(aes(x = day.of.month, y = num.cancellations)) +
+  geom_line() +
+  geom_vline(xintercept = 25, color = "red", linetype = "dashed") +
+  geom_vline(xintercept = 24, color = "green", linetype = "dashed") +
+  geom_text(check_overlap = TRUE, aes(x=23.5, label = "Christmas Eve", y = 80), angle = 90, color = "green") + #creates a marker for Christmas Eve
+  geom_text(check_overlap = TRUE, aes(x=24.5, label = "Christmas", y=80), angle =90, color = "red") + #creates a marker for Christmas Day
+  xlab("Day of the Month") +
+  ylab("Number of Cancellations") +
+  ggtitle("Number of Subscription Cancellations Throughout December")
+
+
+
+```
+
+
+From the plot above, we observed that the highest number of cancellations in December occurred on Christmas Eve. 
+
+
+After finding out general information about the subset of the population who has cancelled their subscription, we then sought to develop an attrition model that would help us to predict whether a customer will cancel their subscription in the near future. We looked at three main lines of analysis:
+
+1. What are the characteristics of customers who cancel their subscription at any point in the four years of data available versus those who do not cancel their subscription?
+
+2. **Of the customers who cancel their subscriptions**, what are the factors that help us predict how long these customers will have their subscriptions?
+
+3. **Using information that we've gathered about the smallest length of time it takes someone to cancel their subscription (from the second line of analysis)**, what are the characteristics of customers who will cancel their subscription in the near future?
+
+
+
+##### Attrition Model Type #1: Single Decision Tree
+```{r, echo = FALSE}
+
+#making sure that the "cancel" variable is a factor -- 1 means a cancellation event happened, and 0 otherwise
+
+#converts both the cancel and id columns to factors
+ltv.unique <- ltv.unique %>%
+  mutate(cancel = as.factor(cancel))
+
+#subsetting  ltv.unique to get the desired columns
+ltv.unique.subset  <- ltv.unique %>%
+  ungroup() %>% 
+  select(gender, cancel, avg.num.pages, avg.minutes, num.pending.orders, num.completed, num.holiday.cards, length.sub.ceiling, avg.visits.month, prop.pending.orders, prop.completed, prop.holiday.cards, prop.notcompleted, avg.visits.month)
+
+
+
+
+```
+
+
+To begin the process of predicting customer attrition, we decided to use a classification-based decision tree because our outcome of interest, `cancel`, is a binary variable, where a 1 corresponds to an individual cancelling their subscription (having a status == 2 in the original dataset) and a 0 corresponding to an individual who has not yet cancelled their subscription in the four year period of data available (having status == 0 or status == 1 in the original dataset).
+
+``` {r, echo = FALSE}
+#creating the testing and training data (60/40 (training/testing))
+set.seed(1)
+train <- sample(1:nrow(ltv.unique.subset), floor(0.60*(nrow(ltv.unique.subset)))) #randomly sampling the indices to use for the training data
+
+#creating the testing data
+ltv.cancel.test <- ltv.unique.subset[-train,]
+
+#creating the the subset of outcome variables in the testing dataset
+cancel.test <- ltv.unique.subset$cancel[-train]
+
+```
+
+```{r, fig.height = 5, fig.width = 10, message = FALSE, warning = FALSE, echo = FALSE}
+#creating a classification tree model based on this data
+
+rpart.cancel.train <- rpart(cancel ~ ., data = ltv.unique.subset, method="class", subset = train)
+#rpart.cancel.train
+
+cancel.party.train <- as.party(rpart.cancel.train)
+
+# Plot
+plot(cancel.party.train)
+
+```
+
+From the output above, the characteristics that seem to best predict that a customer will cancel their subscription are if they have greater than 2.424 average monthly visits and if they have something in their shopping cart on greater than approximately 91.9% of their visits to the card website. In order to test out these findings on data currently unseen by the model, we ran some analysis on testing data and calculated performance metrics.
+
+```{r, echo = FALSE}
+#returns the testing data results
+rpart.cancel.pred <- predict(rpart.cancel.train, newdata = ltv.cancel.test, type = "class")
+
+```
+
+
+#### Attrition Model: Single Decision Tree Model Evaluation
+
+To begin the process of calculating performance metrics for our single decision tree model, we started off by developing a confusion matrix to map how our observations compared to our predictions, which is captured below.
+```{r, echo = FALSE}
+
+#confusion matrix for the testing data
+predicted <- rpart.cancel.pred
+observed <- cancel.test
+
+conf.mat <- table(predicted, observed)
+
+#display the confusion matrix
+conf.mat
+
+
+
+```
+
+
+The first line of inquiry for asssesing the performance of the tree-based model for determining whether a customer would cancel their subscription involved looking at the overall accuracy of the model -- how many instances of cancellation were predicted as cancellations and how many instances of non-cancellation were predicted to be non-cancellations.
+
+```{r, echo = FALSE}
+
+#total population
+total_pop <- length(cancel.test)
+
+#true positive
+true_pos <- conf.mat[1,1]
+
+#true negative
+true_neg <- conf.mat[2,2]
+
+#accuracy
+accuracy <- (true_pos + true_neg)/total_pop
+  
+
+```
+The trained tree has an overall accuracy of approximately `r round(accuracy*100, digits = 2)`%, meaning that `r round(accuracy*100, digits = 2)`% of time, the single decision tree model is able to correctly predict that a customer is going to cancel their subscription.
+
+For the purposes of our analysis, in addition to being concerned with overall model accuracy, we would also be more concerned about the presence of false negatives -- thinking that someone is not going to cancel their subscription, when they actually do end up cancelling their subscription --  than false positives.
+
+The eCard business should be more concerned about false negatives because they would not want to fail to flag a customer who is likely to cancel because there could be interventions they could implement to prevent this behavior. Due to the businesss' likely focus on reducing false negatives, the focus of our analysis is on reducing the presence of false negatives. 
+
+
+```{r, echo = FALSE}
+
+#condition positive (based on observed)
+cond_pos <- sum(conf.mat[,1])
+
+#sensitivity
+sens <- true_pos/cond_pos
+```
+
+One of the classification performance metrics that is often used when false negatives are more costly than false positives is **sensitivity**. The senstivity for this classification tree is `r round(sens*100, digits = 2)`%. This means that the trained model was able to identify `r round(sens*100, digits = 2)`%  of customers who are likely to cancel their subscriptions. The trained model, therefore, appears to do a decent job of detecting attrition behavior. With additional demographic information about customers, the model may be able to pick up more of the true positive instances in the data. The provided dataset currently only includes a "gender" demographic variable and perhaps there are other factors that could assist with our predictive analysis.
+
+
+In order to see if the sensitivity of the model could be improved, we also tried to used **random forests**. A random forest model would allow us to test out hundreds of potential decision tree models, rather than just single decision tree, and allow us to test out a new set of variables as potential predictors at each split of the data. These characteristics of random forest contribute to its potential to help us better predict which customers would cancel at all during the four year period of data that we have available to us.
+
+
+#### Attrition Model Type 2: Random Forests
+
+Because there are `r ncol(ltv.unique.subset)` columns in the subset of the dataset used for this analysis, our choice for the number of randomly selected predictors at each split is `r round(sqrt(ncol(ltv.unique.subset)), digits = 0)`.
+
+```{r, echo = FALSE}
+set.seed(1)
+
+#number of predictors at each split
+m <- sqrt(ncol(ltv.unique.subset))
+
+#creating a model on the training data
+rf.cancel <- randomForest(cancel ~ ., data = ltv.unique.subset, subset = train, mtry = m, importance = TRUE)
+
+#testing the model on the testing data 
+pred.rf.cancel <- predict(rf.cancel, newdata = ltv.cancel.test)
+
+``` 
+
+#### Attrition Model: Random Forests Model Evaluation
+```{r, echo = FALSE}
+#creating a confusion matrix basd on the testing data
+predicted <- pred.rf.cancel
+observed <- cancel.test
+
+conf.mat.rf <- table(predicted, observed)
+
+
+#total population
+total.pop.rf <- length(cancel.test)
+
+#true positive
+true.pos.rf <- conf.mat.rf[1,1]
+
+#true negative
+true.neg.rf <- conf.mat.rf[2,2]
+
+#accuracy
+accuracy.rf <- (true.pos.rf + true.neg.rf)/total.pop.rf
+
+
+   
+```
+
+
+The accuracy obtained through random forest, `r round(accuracy.rf*100, digits = 2)`%,  is similar to the accuracy obtained from the validation set approach on the single decision tree model, `r round(accuracy*100, digits = 2)`% . The difference between the accuracy obtained through random forest and the single decision model is `r abs(accuracy.rf - accuracy)`% . 
+
+
+```{r, echo = FALSE}
+#condition positive (based on observed)
+cond.pos.rf <- sum(conf.mat.rf[,1])
+
+#sensitivity
+sens.rf <- true.pos.rf/cond.pos.rf
+
+
+```
+The senstivity of the model developed through the Random Forest also performed slightly better than the senstivity associated with the model developed by just a singular decision tree model. The practical interpretation of the sensitivity here is that, by using this random forest model, we are able to correctly identify `r round(sens.rf*100, digits = 2)`% of those customers who are going to cancel their subscriptions.
+
+Another feature of random forests is that they enable us to see which variables are the most important in determining the value of the outcome of interest.
+
+```{r, echo = FALSE}
+`Subscription Cancellation Model Using Random Forests` <- rf.cancel
+varImpPlot(`Subscription Cancellation Model Using Random Forests`)
+```
+
+For the purposes of our analysis, we are interested in ensuring node purity, meaning that we are intersted in selecting characteristics that allow us to cleanly segment the customer base into those customers who will cancel their subscription and those who won't, with limited overlap between the two groups. 
+
+In this context, we want the predictors that will best predict the highest number of instances of cancellation. From the `Mean Decrease Gini` plot, the three most important factors in the model that predict whether a customer will cancel their subscription appear to be `avg.visits.month`, `avg.num.pages`, and `prop.pending.orders`. 
+
+**Model Selection**: Based on the two model types explored, due to the higher level of accuracy and sensitivity, the random forest model appears to be the better model to predict whether or not a customer will cancel their eCard subscription. Within the random forest model, we can look at`avg.visits.month`, `avg.num.pages`, and `prop.pending.orders` to ascertain the cancellation behavior of customers.
+
+
+
+#### Attrition Model: Predicting Subscription Length for Customers Who Cancelled Subscriptions
+
+In addition to exploring whether or not a customer will cancel their subscription, we also examined how long it took those who cancelled their subscriptions to cancel. In order to assist with this analysis, we created a regression tree because the variable that provides information about subscription length, `length.sub.ceiling` is a continuous variable and therefore the classification tree model used to predict a binary decision of cancelling a subscription or not would not work for this analysis.
+
+```{r, fig.height = 10, fig.width = 15, message = FALSE, warning = FALSE, echo = FALSE}
+
+#how LONG does it take someone to cancel their subscription? 
+
+#step 1: Subset the data to just those people who DID cancel their subscription
+ltv.cancel <- ltv.unique.subset %>%
+  filter(cancel == 1)
+
+#step 2: Split  the data into training and testing (60% training/40% testing)
+set.seed(1)
+train <- sample(1:nrow(ltv.cancel), floor(0.60*(nrow(ltv.cancel)))) #randomly 
+
+#creating the testing data
+length.sub.subset <- ltv.cancel[-train,]
+
+#creating the the subset of outcome variables in the testing dataset
+length.sub.test <- ltv.cancel$length.sub.ceiling[-train]
+
+#regression tree
+tree.length.sub <- tree(length.sub.ceiling ~ . - num.pending.orders - num.completed - num.holiday.cards, data = ltv.cancel, subset = train)
+plot(tree.length.sub)
+text(tree.length.sub, pretty=0)
+
+
+
+
+```
+
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#predict the testing data using the regression tree
+yhat.tree.length.sub <- predict(tree.length.sub, newdata = length.sub.subset)
+
+test.MSE <- mean((yhat.tree.length.sub - length.sub.test)^2)
+```
+
+From the tree above, it appears that the factors that seem to best determine the relative length of a customer's subscription are: `r summary(tree.length.sub)$used`. Particularly, those customers who purchased  holiday cards on fewer than 18.7% of their visits to the website and who had more than 3.14 average monthly visits had the shortest subscription lengths, of approximately 4 months. 
+
+When we took this tree made from the training data and tried to get predictions for the testing dataset, the mean squared error of the estimates was approximately `r round(test.MSE, digits = 2)`%. While the model is fairly accurate in predicting the data, there are likely other factors which we are currently not controlling for that may be better determinants of subscription length for customers who end up cancelling their subscription.
+
+
+#### Attrition Model: Predicting Cancellation Behavior in the Near Future
+
+We were also interested in determining the characteristics of those who were likely to cancel their subscription in the near future, which we defined as cancelling their subscription within 3 months of beginning their subscription. To conduct this analysis, we used a classification-based decision tree model, given that our predictor was binary.
+
+```{r, echo = FALSE}
+
+#creates a new indicator variable
+
+near.future <- ltv.cancel %>% 
+          mutate(near.future.cancel = as.factor(ifelse(length.sub.ceiling <= 3, 1, 0)))
+
+
+#creating the testing and training data (60/40 (training/testing))
+set.seed(1)
+train <- sample(1:nrow(near.future), floor(0.60*(nrow(near.future)))) #randomly sampling the indices to use for the training data
+
+#creating the testing data
+future.test <- near.future[-train,]
+
+#creating the the subset of outcome variables in the testing dataset
+near.future.cancel.test <- near.future$near.future.cancel[-train]
+
+
+rpart.future <- rpart(near.future.cancel ~ . - length.sub.ceiling - num.pending.orders - num.completed - num.holiday.cards, data = near.future, method="class", subset = train)
+
+
+#displaying the classification tree
+future.party <- as.party(rpart.future)
+
+# Plot
+plot(future.party)
+
+```
+
+```{r, echo = FALSE}
+#testing data
+
+future.pred <- predict(rpart.future, newdata = future.test, type = "class")
+
+
+#creating a confusion matrix basd on the testing data
+predicted <- future.pred
+observed <- near.future.cancel.test
+
+conf.mat.future <- table(predicted, observed)
+conf.mat.future
+
+```
+
+
+```{r, echo = FALSE}
+
+
+#total population
+total.pop.future <- length(near.future.cancel.test)
+
+#true positive
+true.pos.future <- conf.mat.future[2,2]
+
+#true negative
+true.neg.future <- conf.mat.future[1,1]
+
+#accuracy
+accuracy.future <- (true.pos.future + true.neg.future)/total.pop.future
+
+
+
+#condition positive (based on observed)
+cond.pos.future <- sum(conf.mat.future[,2])
+
+#sensitivity
+sens.future <- true.pos.future/cond.pos.future
+
+
+```
+The factors that appear to best predict whether or not a customer is going to cancel their subscription in 3 months (in the near future) is their number of average monthly visits, the proportion of holiday cards that they purchase per visit, and the average number of pages they visit on the website. Specifically, those customers who have less than approximately 4 average monthly visits, who buy holiday cards on more than 2.2% of their visits to the website, and who visit less than 6.5 pages on the website on average, are the most likely to cancel their subscriptions in three months. The accuracy of these predictions is `r accuracy.future`, while the sensistivity is `r sens.future`. The model has a high degree of accuracy and sensitivty in determining which customers actually end up cancelling their subscriptions or not.
+
+#### Methodology: LTV Estimation
+
+##### Introduction and Set-up
+
+Our second objective is to develop a model for estimating the LTV of a customer. To do this, we will explore various data mining prediction modeling techniques and evaluate the performance of each to determine the most useful model for this task.
+
+For this analysis, we will use the customer-level data set restricted to only customers for which we have a completed LTV value. In other words, only customers who have started and ended their subscriptions in this four-year period. Training a model on data that includes customers who have not yet cancelled could result in an under-estimation of LTV, because we do not have a true end point for these customers.
+
+We will exclude some variables from the customer-level data set. First, we will exclude `id`, because it is simply an identifier, and `cancel`, because we have already restricted to just those customers who have ended their subscriptions in this time period (`cancel` = 1). Further, we will exclude the variables that represent total counts, in favor of the variables that measure proportions instead. The excluded variables are: `num.visits`, `num.notcompleted`, `num.holiday.cards`, `num.completed`, and `num.pending.orders`. These are excluded because both they and `ltv` are strongly related to the length of a customer's subscription, and thus they are not helpful for prediction. Related to this, we also exclude `length.sub` and `length.sub.ceiling`, which is exactly equal to a customer's LTV. The benefit of the use of proportions and averages in this model, rather than raw counts, is that predictions of LTV can be made after observing just a few months of a customer's usage behavior.
+
+With this restricted data set, we first explore correlations between the variables. We will want to exclude variables that are highly correlated with other variables to avoid the issue of multicollinearity, which can lead to model estimates that are skewed and difficult to interpret. The correlation plot below shows that no two variables are very highly correlated (correlation coefficient greater than 0.80 or less than -0.80), so no variables are excluded.
+
+```{r, cache = TRUE, message = FALSE, warning = FALSE, include = FALSE}
+
+# Create LTV estimation data set
+ltv.unique.cancel.ltv <- subset(ltv.unique.cancel, select = -c(id, cancel, num.visits, num.notcompleted, num.holiday.cards, num.completed, num.pending.orders, length.sub, length.sub.ceiling))
+
+```
+
+```{r, fig.height = 5, fig.width = 5, cache = TRUE, message = FALSE, warning = FALSE, include = FALSE}
+
+# Drop gender, ltv
+ltv.unique.cancel.ltv.corrsub <- subset(ltv.unique.cancel.ltv, select = -c(gender, ltv))
+
+# Correlation matrix
+corr <- cor(ltv.unique.cancel.ltv.corrsub)
+corr
+
+# Pairs plot
+ggpairs(ltv.unique.cancel.ltv.corrsub, 
+        title = "LTV Data Predictor Pairs Plot")
+
+```
+
+```{r, cache = TRUE, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Correlation plot
+ggcorrplot(corr, 
+           lab = TRUE, 
+           title = "LTV Data Predictor Correlation Plot")
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Train/Test Split
+
+set.seed(1)
+
+test.indexes <- sample(1:nrow(ltv.unique.cancel.ltv), round(0.2 * nrow(ltv.unique.cancel.ltv)))
+train.indexes <- setdiff(1:nrow(ltv.unique.cancel.ltv), test.indexes)
+
+ltv.train <- ltv.unique.cancel.ltv[train.indexes,]
+ltv.test <- ltv.unique.cancel.ltv[test.indexes,]
+
+```
+
+The next step before beginning model exploration is to randomly split the data into training (80% of observations) and testing (20% of observations) data. Models will be fit on the training data, and then we can later evaluate their performance on the unseen testing data. The training data set has `r format(nrow(ltv.train), big.mark = ",")` rows and the testing data set has `r format(nrow(ltv.test), big.mark = ",")` rows.
+
+##### Subset Selection and Linear Regression Model
+
+The first methodology we will explore is using best subset selection to identify the best predictors for a linear regression model.
+
+First, we use best subset selection to determine which variables in the data can best predict a customer’s LTV. Best subset selection works by fitting a linear regression model to every possible combination of predictors in our data. We select the model with the lowest BIC (Bayesian Information Criterion), which is a measure that captures the trade-off between model error and model complexity.
+
+Once we have determined the best set of predictors, we can use a multiple linear regression model to predict LTV. A multiple linear regression model allows us to measure the relationship between LTV and the set of included predictors. This approach models these relationships as linear and fits a regression line that minimizes the squared errors between the predicted and actual LTV values. As we will explore later in this section, we can interpret the coefficients in the resulting model as the impact that each predictor has on LTV, holding all else constant.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Best subset selection
+ltv.bestsubset <- regsubsets(ltv ~ .,
+                             data = ltv.train,
+                             nbest = 1,
+                             nvmax = NULL,
+                             method = "exhaustive")
+
+```
+
+```{r, fig.height = 8, fig.width = 8, message = FALSE, warning = FALSE, include = FALSE}
+
+# Plot
+plot(ltv.bestsubset, scale = "bic", main = "Best Subset Selection")
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Examine best predictors
+coef(ltv.bestsubset, 5)
+
+```
+
+The best subset selection process reveals that the best model includes the following predictors: `gender`, `avg.num.pages`, `prop.pending.orders`, `prop.holiday.cards`, and `avg.visits.month`. Next, we fit a linear regression model with these identified predictors on the training data. Using the model printout below, we can interpret the coefficients on each term to explore these relationships.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Fit model
+fit.ltv.bs <- lm(ltv ~ gender + avg.num.pages + prop.pending.orders + prop.holiday.cards + avg.visits.month, data = ltv.train)
+
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Display output
+kable(coef(summary(fit.ltv.bs)), digits = c(4, 5, 2, 4))
+
+```
+
+The interpretations are as follows: 
+
+* All else in the model held constant, on average, being male is associated with having $`r -1*round(coef(fit.ltv.bs)["genderM"], 2)` lower LTV, compared to being female.
+
+* All else in the model held constant, on average, a customer's average pages per visit increasing by 1 is associated with having $`r -1*round(coef(fit.ltv.bs)["avg.num.pages"], 2)` lower LTV.
+
+* All else in the model held constant, on average, a 10 percentage point increase in the proportion of a customer’s visits in which they enter the send order path is associated with having $`r .1*round(coef(fit.ltv.bs)["prop.pending.orders"], 2)` higher LTV.
+
+* All else in the model held constant, on average, a 10 percentage point increase in the proportion of a customer’s visits in which they purchase a holiday card is associated with having $`r .1*round(coef(fit.ltv.bs)["prop.holiday.cards"], 2)` higher LTV.
+
+* All else in the model held constant, on average, a customer’s average visits per month increasing by 1 is associated with having $`r -1*round(coef(fit.ltv.bs)["avg.visits.month"], 2)` lower LTV.
+
+This estimates are all statistically significant, which means we can be confident that they have not occurred by chance.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Predict
+pred.bs <- predict(fit.ltv.bs, ltv.test)
+
+# MSE
+MSE.bs <- mean((ltv.test$ltv - pred.bs)^2)
+MSE.bs
+
+```
+
+Finally, the fitted regression model is used to make predictions with the testing data. For each customer in the testing data set, we get a predicted LTV value. These predicted values can then be compared with the observed values to determine how well the model predicts the LTV values. We will use the mean squared error (MSE), where "error" is the difference between the predicted and observed values. 
+
+The linear regression model results in a MSE of `r round(MSE.bs, 2)`. This suggests that on average, this model predicts LTV values that are on average $`r round(sqrt(MSE.bs), 2)` off of the observed values.
+
+##### Lasso Model
+
+The second methodology we will explore is the lasso model. In contrast to the subset selection and linear regression method described above, the lasso method fits a model to all of the available predictors and then “shrinks” the coefficient estimates by minimizing the squared errors subject to a penalty. The estimates on some predictors will become zero, meaning that they are selected out of the model.
+
+The penalty referred to above is tuned using a parameter $\lambda$. This parameter controls the overall complexity of the model, which also determines how well it makes predictions. Below, we will find the value of $\lambda$ that minimizes error by using cross-validation, which is a process the involves repeatedly fitting the model and calculating prediction error at various values of $\lambda$ and with various cuts of the data set. Then, we will also find the value of $\lambda$ that results in cross-validation error that is within one standard error of the minimum cross-validation error. This method (referred to as 1-SE-rule) allows us to select a less complex model, which could have better performance on the unseen testing data.
+
+To use this method, we first fit a lasso model to the training data. Next, we determine the value of $\lambda$ that minimizes CV error and the 1-SE-rule choice of $\lambda$. The plot below shows the increasing relationship between CV error and (log of) $\lambda$.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# lasso
+x.ltv <- model.matrix(ltv ~ ., ltv.train)[,-1]
+y.ltv <- ltv.train$ltv
+
+# cv
+set.seed(1)
+cv.ltv <- cv.glmnet(x.ltv, y.ltv, alpha = 1)
+
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Plot
+plot(cv.ltv)
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Lambda that minimizes CV error
+lam.min <- cv.ltv$lambda.min
+lam.min
+
+# 1-SE rule choice of lambda
+lam.1se <- cv.ltv$lambda.1se
+lam.1se
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+grid = 10^seq(10, -2, length = 100)
+
+lasso <- glmnet(x.ltv, y.ltv, alpha = 1, lambda = grid)
+
+# Lambda min
+lasso.min <- predict(lasso, type = "coefficients", s = lam.min)[1:9,]
+lasso.min
+
+# Lambda 1se
+lasso.1se <- predict(lasso, type = "coefficients", s = lam.1se)[1:9,]
+lasso.1se
+
+```
+
+The value of $\lambda$ that minimizes CV error is `r round(lam.min, 4)`. The value of $\lambda$ that meets the one standard error rule is `r round(lam.1se, 4)`. Next, we use these tuning parameters in the lasso models to predict LTV in the testing data.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Matrix
+xf.ltv <- model.matrix(ltv ~ ., ltv.test)[,-1]
+
+# Predict
+pred.minlasso <- predict(lasso, s = lam.min, newx = xf.ltv)
+
+# MSE
+MSE.minlasso <- mean((ltv.test$ltv - pred.minlasso)^2)
+MSE.minlasso
+
+# Predict
+pred.1selasso <- predict(lasso, s = lam.1se, newx = xf.ltv)
+
+# MSE
+MSE.1selasso <- mean((ltv.test$ltv - pred.1selasso)^2)
+MSE.1selasso
+
+```
+
+We can again use MSE to evaluate the performance of these models. The lasso model with $\lambda$ that minimizes CV error has MSE of `r round(MSE.minlasso, 2)`, and the lasso model with $\lambda$ that meets the one standard error rule has MSE of `r round(MSE.1selasso, 2)`. These MSE values are lower than the MSE value from the best subset linear regression model, indicating that these models perform better at predicting customer LTV. However, these predictions are still incorrect by $`r round(sqrt(MSE.minlasso), 2)` (using the $\lambda$ that minimizes CV error) and $`r round(sqrt(MSE.1selasso), 2)` (using 1-SE-rule $\lambda$) on average.
+
+##### Regression Tree
+
+The final model we will explore for predicting customer LTV is a regression decision tree. Regression decision trees work by splitting the data using various predictor values, and then averaging the LTV value for the set of data points that end up at the end of each set of branches. Each split is chosen to minimize the squared error between actual and predicted LTV values.
+
+First, we fit a tree model to the training data, and then we can prune it. The pruning process involves cutting back on the tree branches in order to improve prediction performance on the unseen testing data. However, in this case, the un-pruned tree is the best option.
+
+```{r, fig.height = 8, fig.width = 8, message = FALSE, warning = FALSE, include = FALSE}
+
+set.seed(1)
+
+# Fit tree
+tree.ltv <- tree(ltv ~ ., ltv.train)
+
+tree.ltv
+summary(tree.ltv)
+
+# Plot tree
+plot(tree.ltv)
+text(tree.ltv, pretty=0)
+
+# Prune tree
+cv.ltv <- cv.tree(tree.ltv)
+
+plot(cv.ltv$size, cv.ltv$dev, type='b')
+
+prune.ltv <- prune.tree(tree.ltv, best = 9)
+
+```
+
+The plot below shows the resulting decision tree. The first split in the data uses the `prop.holiday.cards` variable. Data points with a value of `prop.holiday.cards` < 0.182373 are then split off into the left branch. Then, another split is made on `avg.visits.month` that divides that branch into two nodes. Data points with `prop.holiday.cards` < 0.182373 and `avg.visits.month` < 2.97222 have an average LTV of $14.62. Data points with `prop.holiday.cards` < 0.182373 and `avg.visits.month` >= 2.97222 have an average LTV of $4.77. The other branches and nodes in the below tree can be interpreted similarly.
+
+```{r, fig.height = 10, fig.width = 10, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Plot
+plot(prune.ltv)
+text(prune.ltv, pretty=0)
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+
+# Predict
+yhat.tree.ltv <- predict(prune.ltv, newdata = ltv.test)
+
+# Plot predictions
+plot(yhat.tree.ltv, ltv.test$ltv)
+abline(0, 1)
+
+# Calculate MSE
+MSE.tree.ltv <- mean((yhat.tree.ltv - ltv.test$ltv)^2)
+MSE.tree.ltv
+
+```
+
+As before, we can use MSE to evaluate the performance of this model on the testing data. The MSE of this model is `r round(MSE.tree.ltv, 2)`, which is lower than all of the previously-explored models. This model is also more easily interpreted than the previous models. We choose this model as our final model for predicting LTV.
+
+#### Methodology: Customer Segmentation
+
+##### Introduction and Set-up
+
+The third objective is to develop a customer segmentation scheme that identifies sleeping, or inactive, customers. These are customers who have not yet cancelled their subscription but are inactive on the site for some period of time. To do this, we will explore various data mining classification techniques and evaluate the performance of each to determine the most useful model for this task. 
+
+For this analysis, we will use the observation-level data set, the results of which will be aggregated at the customer level. This analysis relies heavily on the "lag time" for each customer, which is defined as the amount of time (in days) between the customer's site visits. The lag time is calculated for every observation except a customer's first event on the site because there is no preceding event. Lag time, in this context, is only relevant for users who have not cancelled, so it is also not calculated for any cancellation events. There is further discussion about lag time throughout the methodology section.
+
+We will exclude some variables from the customer-level data set. First, we will exclude `id`, because it is simply an identifier, and `cancel`, because we have already restricted to active customers. Further, we will exclude the variables that represent total order counts in favor of the variables that measure proportions instead. The excluded variables are: `num.notcompleted`, `num.holiday.cards`, `num.completed`, and `num.pending.orders`. Related to this, we exclude `sleep`, which categories customers as dormant (`sleep` == 1) or not (`sleep` == 0), as this is the predictor variable in the models.
+
+
+```{r, message = FALSE, warning = FALSE, include = FALSE, echo = FALSE}
+
+#creates a list of the customer id's for all customers who have cancelled
+cancelled.id <-
+  ltv.unique %>%
+  filter(cancel == 1) %>%
+  select(id)
+
+
+#creates a subset of data that only contains observations for customers who haven't cancelled
+lag <-
+    subset(ltv.agg, !(id %in% cancelled.id$id))
+
+```
+
+```{r, message = FALSE, warning = FALSE, include = FALSE, echo = FALSE}
+
+#0/"new" events are included because customers visited the website and completed orders during these events
+#0/"new" events serve as the starting point for calculating lag times
+
+#calculates order lag for all active customers
+lag <- lag %>%
+  group_by(id) %>%
+  mutate(previous = lag(date, 1)) %>%
+  mutate(visit.lag = as.numeric(date - lag(date, 1)))
+
+lag <- lag %>%
+  group_by(id) %>%
+  filter(!is.na(visit.lag)) %>%
+  mutate(num.visits.lag = n(),
+         avg.lag = as.numeric(sum(visit.lag) / (num.visits.lag)),
+         max.lag = as.numeric(max(visit.lag)))
+
+lag.unique <- lag %>%
+  filter(row_number() == n())
+
+#dropping those with a subscription length shorter than the max.lag cutoff
+lag.unique <- lag %>%
+  filter(row_number() == n(),
+         length.sub.ceiling > 3)
+
+
+
+```
+
+
+```{r, message = FALSE, warning = FALSE, include = FALSE, echo = FALSE}
+#summary statistics on lag times - used to determine an appropriate cutoff for sleeping
+max(lag.unique$max.lag)
+mean(lag.unique$max.lag)
+quantile(lag.unique$max.lag, .75)
+```
+
+
+```{r, message = FALSE, warning = FALSE, include = FALSE, echo = FALSE}
+#classifying each active customer as sleeping or not based on cutoff of max lag time > 90 days
+lag.unique <-
+  lag.unique %>%
+  group_by(id) %>%
+  mutate(sleep = ifelse(max.lag > 90,1,0))
+
+#recoding gender to prevent some issues with the models coercing the data
+lag.unique$gender <- recode_factor(lag.unique$gender, "M" = 0, 
+                                "F" = 1)
+
+```
+
+
+```{r, cache = TRUE, message = FALSE, warning = FALSE, include = FALSE, echo = FALSE}
+
+# Drop non-numeric variables and others that are not used in modeling
+lag.subset.corr <- subset(lag.unique, select = -c(id, gender, ltv, date, previous, cancel, num.visits.lag, visit.lag, num.completed, num.notcompleted, num.holiday.cards, num.pending.orders, length.sub, status, avg.lag, max.lag, sleep, completed, entered, holiday, onsite, pages))
+# Correlation matrix
+corr <- cor(lag.subset.corr)
+
+```
+
+We first explore correlations between the variables. We will want to exclude variables that are highly-correlated with other variables to avoid the issue of multicollinearity, which can lead to model estimates that are skewed and difficult to interpret. The strongest correlations are between `prop.completed` & `avg.num.pages`, `propnotcompleted` & `propcompleted`, and `num.visits` & `length.sub.ceiling`. These variables are not excluded at this stage, but these correlations are factored into modeling decisions for this objective.
+
+
+```{r, fig.height = 8, fig.width = 8, cache = TRUE, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Correlation plot
+ggcorrplot(corr, 
+           lab = TRUE, 
+           title = "Customer Segmentation Predictor Correlation Plot")
+
+```
+
+The lag time between each customer's site visits were calculated and the results were aggregated at the customer level. The customer's average lag time between visits is `avg.lag` and the maximum amount of time between any two visits is `max.lag`. Although `avg.lag` serves as a useful benchmark for understanding customer behavior, `max.lag` is used to determine whether or not a customer is sleeping. `max.lag` offers insight into whether or not a customer was dormant at any point in their subscription. 
+
+The graph below shows the distribution of `max.lag` for all customers. The graph is right-skewed, where most customers have a `max.lag` between 30-90 days.
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+ggplot(lag.unique, aes(x = max.lag)) +
+  geom_histogram(binwidth=10) +
+  xlab("Max Lag Time (in days)") +
+  ylab("Count of Users") + 
+  ggtitle("Distribution of Customers' Max Lag Time") 
+
+```
+
+
+
+After calculating the `max.lag` for every customer, a cutoff of 90 days was used to determine whether or not a customer is defined at sleeping. The resulting classification is used in model fitting and testing. In other words, if, at any point in their subscription, a customer was inactive for more than 90 days, they are classified as sleeping (`sleep` == 1). This 90-day cutoff was selected for two reasons:
+
+* 90 days is the maximum amount of time between any of the holiday peaks identified in exploratory data analysis. Since we know traffic on the site closely aligns with holiday orders, this 90 day cutoff allows for customers who mostly purchase during the holiday seasons.
+
+* 25% of active customers had a `max.lag` of `r quantile(lag.unique$max.lag, .75)` or more days. 
+
+
+Before we proceed, all customers with a `length.sub.ceiling` less than 3 months were dropped from the dataset used for modeling. Since, by our definition, customers can only be sleeping if they have a `max.lag` greater than 3 months, it is impossible for new users to be "sleeping" and they may skew our results.
+
+As with the previous objectives, the next step before beginning model exploration is to randomly split the data into training (80% of observations) and testing (20% of observations) data. Models will be fit on the training data, and then we can later evaluate their performance on the unseen testing data.
+
+In assessing the models, we calculate the misclassification rate, which is the number of customers in the test dataset that are incorrectly classified as sleeping or not by the model. We also calculate the sensitivity for each model. Sensitivity measures the proportion of customers that were classified as sleeping compared to all of the customers that had an observed status of sleeping. In this scenario, we want to correctly identify those customers that are sleeping even if that means identifying some cases that turn out to be not sleeping.
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
+
+#subsetting data for modeling
+lag.unique.subset <- subset(lag.unique, select = -c(ltv, date, previous, cancel, num.visits.lag, visit.lag, num.completed, num.notcompleted, num.holiday.cards, num.pending.orders, length.sub, status, prop.notcompleted, max.lag, avg.lag, pages, onsite, entered, completed, holiday))
+
+set.seed(1)
+#creating testing and training data
+sleep.test.indexes <- sample(1:nrow(lag.unique.subset), .2*nrow(lag.unique.subset))
+sleep.train.indexes <- setdiff(1:nrow(lag.unique.subset), sleep.test.indexes)
+
+sleep.train <- lag.unique.subset[sleep.train.indexes,]
+sleep.test <- lag.unique.subset[sleep.test.indexes,]
+
+
+sleep.train$sleep = factor(sleep.train$sleep, levels = c(0, 1))
+sleep.test$sleep = factor(sleep.test$sleep, levels = c(0, 1))
+
+```
+
+##### Logistic Regression Models
+
+Logistic regression models the probability for classification tasks with two possible outcomes - it is an extension of the linear regression model. The model provides coefficient estimates that can predict the probability of an outcome (in this case, whether or not a customer is sleeping).
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
+
+set.seed(1)
+glm1 <- glm(sleep ~ .-id, data = sleep.train, family = binomial)
+
+summary(glm1)
+
+glm.probs = predict(glm1, sleep.test, type="response")
+glm.pred = rep("0", length(glm.probs))
+glm.pred[glm.probs>0.5] = 1
+
+sleep.glm1.error <- mean(glm.pred!=sleep.test$sleep)
+
+#generating confusion matrix for the logistic regression model
+Predicted = glm.pred
+Observed = sleep.test$sleep
+glm1.sleep.mat <- table(Predicted, Observed)
+
+#calcualating sensitivity
+sleep.glm1.sen <- (glm1.sleep.mat[2,2]) / (glm1.sleep.mat[2,2] + glm1.sleep.mat[1,2])
+
+```
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, include = FALSE}
+set.seed(1)
+glm2 <- glm(sleep ~ gender+length.sub.ceiling+prop.holiday.cards+avg.visits.month+prop.completed, data = sleep.train, family = binomial)
+
+summary(glm2)
+
+glm.probs2 = predict(glm2, sleep.test, type="response")
+glm.pred2 = rep("0", length(glm.probs2))
+glm.pred2[glm.probs2>0.5] = 1
+
+sleep.glm2.error <- mean(glm.pred2!=sleep.test$sleep)
+
+#generating confusion matrix for the simplified logisttic regression
+Predicted = glm.pred2
+Observed = sleep.test$sleep
+glm2.sleep.mat <- table(Predicted, Observed)
+
+#calcualating sensitivity
+sleep.glm2.sen <- (glm2.sleep.mat[2,2]) / (glm2.sleep.mat[2,2] + glm2.sleep.mat[1,2])
+```
+
+We first fit a logistic regression with the 9 variables available, excluding only those that are highly correlated or directly related to the outcome we are trying to predict. The coefficients on the resulting logistic regression can be interpreted as such:
+
+* `gender`: all else in the model held constant, if the customer is female, the odds that they are sleeping are 6 times those of males (in other words, the odds of a male customer sleeping are lower than the odds of the female customer sleeping). It should be noted here that most of the customers are female, so this relationship may be reflective of the customer base demographics.
+* `avg.num.pages`: all else in the model held constant, as the customer's average number of pages visited increases by 1, the customer's odds of sleeping decrease by a factor of .96 (in other words, the odds of a customer sleeping decrease as they visit more pages per day on average)
+* `avg.minutes`: all else in the model held constant, as the customer's average number of minutes on the site per day increases by 1, the customer's odds of sleeping increase by a factor of 1.01 (in other words, the odds of a customer sleeping increase as they spend more time on the site on average)
+* `num.visits`: all else in the model held constant, as the customer's number of total visits increases by 1, the odds of the customer sleeping decrease by a factor of .98
+* `length.sub.ceiling`: all else in the model held constant, as the customer's subscription length increases by 1 month, the odds of the customer sleeping increase by a factor of 1.16
+* `prop.pending.orders`: all else in the model held constant, as the proportion of a customer's visits in which they entered a send order path increases by 1% (or .01), the odds of the customer sleeping increase by a factor of 1.05
+* `prop.completed`: all else in the model held constant, as the proportion of a customer's visits in which they completed an order increases by 1% (or .01), the odds of the customer sleeping increase by a factor of 1.02
+* `prop.holiday.cards`: all else in the model held constant, as the proportion of a customer's visits in which they ordered a holiday card increases by 1%, the odds of the customer sleeping decrease by a factor of .92
+* `avg.visits.month`: all else in the model held constant, as the customer's average number of visits per month increases by 1, the odds that a customer is sleeping decrease by a factor of .03. 
+
+To summarize, the following variables increase the odds that a customer sleeps: `avg.minutes`, `length.sub.ceiling`, and `prop.pending.orders`
+The following variables decrease the odds that a customer sleeps: `gender` is male (relative to female), `avg.num.pages`, `avg.visits.month`, `num.visits`, `prop.holiday.cards`, and `prop.completed`. 
+
+The following variables are statistically significant in this model: `gender`, `length.sub.ceiling`, `num.visits`, `prop.completed`, `prop.holiday.cards`, and `avg.visits.month`. 
+
+Below is a table of the coefficients from the first logistic regression:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#table of coefficents for the first logistic regression model
+#for interpretation, coefficients on 'prop' variables are divided by 100
+
+kable(coef(summary(glm1)), digits = c(4, 5, 2, 4))
+```
+
+
+Based on the 9 predictor variables, the model predicts whether or not a customer in the test data is sleeping and we compare those predicted classifications to the true observation for each customer. We then calculate the accuracy of the model by assessing the misclassification rate, which is the number of customers that are incorrectly categorized. The first logistic regression performs fairly well, yielding a misclassification rate of `r round(sleep.glm1.error*100, 2)`%. However, this model is perhaps unnecessarily complex and we investigate if we can achieve a similar result with a simpler model. 
+
+The simplified logistic regression model predicts `sleep` on 5 predictor variables: gender, the length of the user's subscription, the user's average number of visits per month, the proportion of a user's session that resulted in a completed order, and the proportion of the user's orders that included holiday cards. These 5 variables were the most significant in the first logistic regression model, which is why they were selected for inclusion in the simplified model. `num.visits` was considered for inclusion but was ultimately omitted given its strong correlation with `length.sub.ceiling`. With fewer variables, the logistic regression model with 5 variables provides a comparable misclassification rate of `r round(sleep.glm2.error*100, 2)`% with a slightly higher sensitivity (`r round(sleep.glm2.sen, 2)`). 
+
+The coefficients on the resulting logistic regression with 4 predictor variables can be interpreted as such:
+
+* `gender`: all else in the model held constant, if the customer is female, the odds that they are sleeping are 6 times those of males (in other words, the odds of a male customer sleeping are lower than the odds of the female customer sleeping). This coefficient is a bit surprising, because females comprise the majority of the customers. However, that may be the reason for the relationship identified by the model. It does highlight potential gender differences in site usage, which is a useful insight.
+* `length.sub.ceiling`: all else in the model held constant, as the customer's subscription length increases by 1 month, the odds of the customer sleeping increase by a factor of 1.01
+* `prop.holiday.cards`: all else in the model held constant, as the proportion of a customer's visits in which they ordered a holiday card increase by 1%, the odds of the customer sleeping decrease by a factor of .93
+* `avg.visits.month`: all else in the model held constant, as the customer's average number of visits per month increases by 1, the odds that a customer is sleeping decrease by a factor of .02. This factor is very small, so it's important to note that increasing the average number of visits per month requires customers to visit the site an additional 12 times every year.
+* `prop.completed`: all else in the model held constant, as the proportion of a customer's visits in which they completed an order increases by 1% (or .01), the odds of the customer sleeping increase by a factor of 1.03
+
+Below is a table of the coefficients from the second logistic regression:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#table of coefficients for the second logistic regression
+#for interpretation, coefficients on 'prop' variables are divided by 100
+kable(coef(summary(glm2)), digits = c(4, 5, 2, 4))
+```
+
+
+
+The plot below compares the coefficient values of the two logistic regression models. The predictor variables are listed on the left-hand side and the coefficient estimates are represented as blue circles for the first logistic regression and orange squares for the second, simplified logistic regression. The lines indicate the certainty of the estimate - the shorter the line, the more confidence we can have in that coefficient estimate. The coefficient estimates are fairly consistent across the two models although there are some deviations. There is generally greater certainty about the coefficients in the second model. 
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+plot_summs(glm1, glm2, scale = TRUE)
+```
+
+
+
+##### Classification Trees
+
+The next category of models that we evaluate are classification tress. Classification decision trees work by splitting the data using various predictor values, and then predicting the outcome (sleeping or not) based on the most common classification at that node. 
+
+First, we fit a tree model to the training data, and then we can prune it. The pruning process involves cutting back on the tree branches in order to improve prediction performance on the unseen testing data. 
+
+The plot below shows the resulting decision tree. The first split in the data uses the `avg.visits.month` variable. Data points with a value of `avg.visits.month` < 2.32843 are then split off into the left branch. Then, another split is made on `avg.visits.month` that divides that branch into two nodes. Data points with `avg.visits.month` < 2.32843 and `avg.visits.month` < 1.31414 are classified as sleeping. Data points with `avg.visits.month` < 2.32843 but > 1.31414 and a `length.sub.ceiling` > 22.5 are also classified as sleeping. The other branches and nodes in the below tree can be interpreted similarly. All of the nodes split on `length.sub.ceiling` or `avg.visits.month`. 
+
+
+```{r, fig.height = 6, fig.width = 10, message = FALSE, warning = FALSE, echo = FALSE}
+set.seed(1)
+
+#Full tree
+tree.sleep <- tree(sleep ~ . -id, data = sleep.train)
+plot(tree.sleep)
+text(tree.sleep, pretty=0)
+
+tree.sleep.predict <- predict(tree.sleep, sleep.test, type = "class")
+
+#generating confusion matrix for the tree
+Predicted = tree.sleep.predict
+Observed = sleep.test$sleep
+tree.sleep.mat <- table(Predicted, Observed)
+
+#calcualating sensitivity
+sleep.tree1.sen <- (tree.sleep.mat[2,2]) / (tree.sleep.mat[2,2] + tree.sleep.mat[1,2])
+
+#calculating misclassification rate
+sleep.tree1.error <- mean(tree.sleep.predict!=sleep.test$sleep)
+
+```
+
+The first decision tree, which is not pruned, grows a relatively accurate tree. This tree has a misclassification rate of `r round(sleep.tree1.error*100, 2)`%. However, the sensitivity is only `r sleep.tree1.sen`, meaning we're only identifying `r round(sleep.tree1.sen*100, 2)`% of sleeping customers. From a business perspective, we would prefer a model that better identifies dormant customers. 
+
+Next, we'll see if we can improve on the original tree by applying pruning and random forest techniques.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, include = FALSE}
+#pruned tree
+
+set.seed(1)
+
+#generating a full tree that will be pruned
+sleep.full <- rpart(sleep ~ .-id, data = sleep.train, 
+                       control = rpart.control(minsplit=100, cp=0.002))
+
+plotcp(sleep.full)
+
+cp.table <- sleep.full$cptable
+cp.table
+
+#1 se rule for pruning 
+min(cp.table[, 4]) + (1*cp.table[which.min(cp.table[, 4]), 5])
+```
+
+The plot below shows the resulting decision tree from pruning. The first split is again on `avg.visits.month`, although this tree has more nodes and branches compared to the first classification tree.
+
+
+```{r, fig.height = 8, fig.width = 10, message = FALSE, warning = FALSE, echo = FALSE}
+#tree should be pruned at line 7, with a cp = .002713704
+sleep.pruned <- prune(sleep.full, cp = 0.002713704)
+
+plot(sleep.pruned)
+text(sleep.pruned, pretty=0)
+
+sleep.pruned.predict <- predict(sleep.pruned, sleep.test, type = "class")
+
+#generating confusion matrix for the pruned tree
+Predicted = sleep.pruned.predict
+Observed = sleep.test$sleep
+pruned.sleep.mat <- table(Predicted, Observed)
+
+#calcualating sensitivity
+sleep.tree2.sen <- (pruned.sleep.mat[2,2]) / (pruned.sleep.mat[2,2] + pruned.sleep.mat[1,2])
+
+#calculating misclassification rate
+sleep.tree2.error <- mean(sleep.pruned.predict!=sleep.test$sleep)
+
+```
+
+
+The pruned tree is more difficult to interpret, but it has the highest sensitivity of all models tested thus far (`r round(sleep.tree2.sen*100, 2)`%) while maintaining a consistent accuracy. The nodes in this tree split on `avg.visits.month`, `length.sub.ceiling`, `prop.holiday.cards`, and `gender`.
+
+The last technique we apply is random forest. Random forest decorrelates numerous trees that are generated for the same training data using bagging techniques. At each split in the tree, the tree can only split on a limited set of predictors (and this process repeats for each split on the tree). The results of this model are not interpretable in the same manner as the first two classification trees - in other words, there is no printed tree that cleanly summarizes the random forest technique. Instead we examine some alternate plots that help us understand the random forest results.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, include = FALSE}
+set.seed(1)
+sleep.rf <- randomForest(sleep ~ .-id, data = sleep.train, mtry = 3, importance=TRUE)
+sleep.rf.predict <- predict(sleep.rf, newdata = sleep.test)
+
+#generating confusion matrix for the random forest
+Predicted = sleep.rf.predict
+Observed = sleep.test$sleep
+sleep.rf.mat <- table(Predicted, Observed)
+
+#calcualating sensitivity
+sleep.rf.sen <- (sleep.rf.mat[2,2]) / (sleep.rf.mat[2,2] + sleep.rf.mat[1,2])
+
+#calculating misclassification rate
+sleep.rf.error <- mean(sleep.rf.predict!=sleep.test$sleep)
+```
+
+The random forest has a similar misclassification rate of `r round(sleep.rf.error*100, 2)`%, but the sensitivity (`r sleep.rf.sen`) is in between the other models tested for this objective.
+
+The random forest produces a variable importance plot which helps us understand which predictors have the biggest effect on the model's fit. The variable importance plot is shown below. The left-hand side of the plot indicates each predictor's impact on the model's accuracy and the right-hand side indicates which variables increase node purity. The results of the two plots are similar: `avg.visits.month` and `length.sub.ceiling` are the two most impactful variables on both measures, meaning they have the greatest effect on the model.
+
+```{r, fig.height = 8, fig.width = 8, message = FALSE, warning = FALSE, echo = FALSE}
+#variable importance plot on random forest object
+varImpPlot(sleep.rf)
+
+```
+
+
+
+The ROC curve below plots the true positive and false positive rates for the pruned tree and the random forest models. The best classifier would be vertical until it reaches specificity = 1 and then horizontal. We can see that the random forest (plotted in black) and the pruned tree (plotted in blue) are very similar.
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+rf.test.prob <- predict(sleep.rf, newdata = sleep.test, type = "prob")[,"1"]
+rf.roc <- roc(sleep.test$sleep, rf.test.prob)
+
+#prune.tree.predict <- predict(sleep.pruned, newdata = sleep.test, type = "prob")
+pruned.test.prob <- predict(sleep.pruned, newdata = sleep.test, type = "prob")[,"1"]
+ptree.roc <- roc(sleep.test$sleep, pruned.test.prob)
+
+
+plot(rf.roc)
+plot(ptree.roc, add = TRUE, col = I('steelblue'))
+
+```
+
+
+
+ROC curves produce another useful metric, the area under the curve (AUC). The AUC provides a measure of the general usefulness of the test, where a higher AUC is equated with more usefulness. Again, the random forest and pruned tree perform similarly. The pruned tree has an AUC of `r round(ptree.roc$auc, 2)` and the random forest has an AUC of `r round(rf.roc$auc, 2)`.
+
+##### Model Selection
+
+Each of the 5 models applied to customer segmentation objective had a similar misclassification rate of 17-18%. While understanding the accuracy is important, the more relevant statistic is the sensitivity, which also varied more across the models. The models with a low misclassification rate also have low sensitivity compared to the other models. The sensitivity of our models vary from .58 (the classification tree) to .69 (the pruned classification tree).
+
+The table below compares the misclassification rate and sensitivity for each of the five models considered in this section:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE, include = FALSE}
+#creating a table that compares the performance of each model
+sleep.models <- c("Full logistic regression", "Simplified logistic regression", "Classification tree", "Pruned classification tree", "Random forest")
+sleep.accuracy <- c(sleep.glm1.error, sleep.glm2.error, sleep.tree1.error, sleep.tree2.error, sleep.rf.error)
+sleep.sensitvity <- c(sleep.glm1.sen, sleep.glm2.sen, sleep.tree1.sen, sleep.tree2.sen, sleep.rf.sen)
+
+sleep.model.table <- kable(data.frame(sleep.models, sleep.accuracy, sleep.sensitvity), col.names = c("Model", "Accuracy", "Sensitivity"), digits = c(4, 4))
+
+```
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+
+sleep.model.table
+
+```
+
+
+
+For the customer segmentation objective, specifically identifying sleeping customers, the model of choice is the simplified logistic regression model with 5 predictor variables. The pruned tree had the highest sensitivity, but the resulting model is difficult to interpret and less applicable to business decisions. Similarly, the random forest is difficult to interpret, although the results are very helpful in determining the predictors that have the greatest impact on classifying customers as sleeping or not. The first decision tree (which was fit without pruning) was easier to interpret, but decision trees are highly variable. This means that the results can change drastically with minor changes to the training data. 
+
+
+### Key Findings and Takeaways
+
+In this section, we will discuss our main findings. We will address our three main objectives, and discuss the strengths and weaknesses of our models and results.
+
+#### Findings: Attrition Model
+
+##### Main Findings
+
+When determining attrition, we explored three dimensions:
+
+1. Whether or not any customer had cancelled their subscription.
+2. **For those customers who have cancelled their subscription**, what determines how long they will keep their subscription.
+3. **For those customers who have cancelled their subscription**, what factors determine if they cancel their subscription in the near future, which we defined as cancelling their subscription in 3 months.
+
+As discussed above in the methodology section, the best-performing model to predict customer attrition behavior was the random forest model, with an accuracy of `r accuracy.rf`. The three best predictors of attrition behavior based on the random forest model appear to be: `avg.visits.month`, `avg.num.pages`, and `prop.pending.orders`. 
+
+Using a regression tree model, the key factors that appeared to determine the length of the subscription for the customers in the dataset were the `prop.holiday.cards`, `avg.visits.month` and `avg.num.pages`, and `prop.notcompleted`. The factor that helped to segment the customers the most, if we were to rely only one factor, was the proportion of holiday cards that were purchased. Specifically, if a customer purchased holiday cards on approximately 18.7% of their visits, they could potentially to have a subscription length that was almost 8 times that of those who purchased  holiday cards on fewer than 18.7% of their visits to the website.
+
+The predictors that seemed to best predict whether or not a customer would cancel their subscription in the near future were the `avg.visits.month`, `prop.holiday.cards` and `avg.num.pages`.
+
+A consistent theme among the models is the impact of holiday card purchases on subscription behavior. From our exploratory data analysis, it was clear that subscription cancellation behavior appeared to fluctuate significantly through the year -- with the largest spike in cancellations occuring during the December Christmas holiday season. For the eCard business owners, the results of our findings seem to suggest that customer retention programs should be implemented around the holiday season.
+
+##### Implications and Limitations
+
+From a business perspective, in order to ensure that customers will not cancel their subscription, incentives would need to be created, whether through sales or promotions, to increase the number of average monthly visits and average number of pages visited to the eCard store to assist with customer retention. Furthermore, the business could also look for ways to entice customers with pending items in their shopping carts to actually enter a send order path and complete an order. 
+
+To ensure longer periods of subscription, the eCard business could also explore providing discounts or promotions around the holiday season, as those customers who purchased more holiday cards appeared to be enticed to hold onto their subscriptions for longer periods of time than their counterparts who purchased few holiday cards.
+
+One of the weaknesses of the analysis is the lack of demographic information available for analysis. There could be additional factors, such as income, that may be able to explain customer subscription behavior. Having this additional demographic variable could've helped to determine if there were customers who may have wanted to purchase more cards but were restricted in buying more cards due to fairly limited income. For future analysis of customer attrition behavior, it could be useful to have this information to produce results with even higher degrees of accuracy and sensitivty than the current models.
+
+#### Findings: LTV Estimation
+
+##### Main Findings
+
+As discussed in the methodology section above, the best-performing model for estimating customer LTV is the decision tree model. The tree image is again displayed below.
+
+```{r, fig.height = 10, fig.width = 10, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Plot
+plot(prune.ltv)
+text(prune.ltv, pretty=0)
+
+```
+
+The customers with the highest LTV ($31.17) are those who order holiday cards on 21.76% of visits or more, visit fewer than 5.19 pages per visit, visit an average of 2.01 times per month or more, and who fail to complete an order on 15.43% of visits or more. In general, these are customers who relatively frequently order holiday cards and and visit relatively few pages, though who also leave their order incomplete fairly frequently.
+
+The customers with the lowest LTV ($4.22) are those who order holiday cards on 18.24% of visits or more, who visit 5.19 pages per visit on average or more, and who visit the site 3.21 times per month on average or more. In general, these customers also frequently order holiday cards, but also visit the site more frequently and view more pages than the customers with the highest LTV.
+
+The MSE of this model is `r round(MSE.tree.ltv, 2)`, which means that it can estimate customer LTV with average error of $`r round(sqrt(MSE.tree.ltv), 2)`. 
+
+The plot below shows how well LTV is estimated for customers. Each point reflects a customer in the LTV test data. The x-axis reflects the predicted LTV value, and the y-axis reflects the observed LTV value. The plot also includes a y=x line, which reflects “perfect” prediction. Points located near this line reflect customers whose LTV value is estimated relatively accurately, while points farther away from the line are estimated less accurately.
+
+```{r, fig.height = 6, fig.width = 6, message = FALSE, warning = FALSE, echo = FALSE}
+
+# Predictions
+yhat.ltv.tree <- predict(prune.ltv, newdata = ltv.test)
+ltv.test.ltv <- ltv.test$ltv
+
+# Plot observed and predicted
+plot(yhat.ltv.tree, ltv.test.ltv, main = "Decision Tree Prediction Performance", xlab = "Predicted LTV Values", ylab = "Observed LTV Values")
+abline(0, 1)
+
+```
+
+##### Implications and Limitations
+
+Given that the average deviation of the estimate from the actual predicted value is just under $8 (which reflects eight months of subscription), this model may not help the card company estimate customer LTV to a very specific degree. One limitation that may be contributing to this weakness in the model is the limited data we have available. The only demographic variable we have is gender, but it seems likely that factors like income level, age, or even geographic location could be highly related to the LTV of a customer. It is possible that a decision tree or other model applied to a data set that includes these other demographic factors could result in better LTV estimates.
+
+Regardless of the accuracy of the estimations, one benefit of the decision tree model is that it is highly interpretable. This model allows the card company to see which predictors are most important, and which values of those predictors are associated with higher LTV. The company could then determine how to promote certain strategies that would increase customer LTV. For example, the highest LTV values are associated with customers who order holiday cards on a high proportion of visits, and who visit fewer than 5 pages per visit. The company could thus figure out how to better market their product to people interested in holiday cards, and make the process more streamlined so that they do not have to navigate many pages when visiting.
+
+Further, the benefit of using proportions and averages related to order and visit activities as predictors in this model is that predictions of LTV can be made after observing just a few months of a customer's usage behavior. The company can thus estimate a new customer's LTV after just a few months, and take action to try to encourage a higher LTV through promotions or other actions as needed.
+
+All in all, this model serves as a helpful tool for estimating customer LTV. It could potentially be improved with better customer demographic data, but still it provides helpful and interpretable insights for the company to not only estimate customer LTV, but also to determine how to improve their business and customer retention efforts.
+
+#### Findings: Customer Segmentation
+
+Of the `r format(nrow(lag.unique), big.mark = ",")` customers who have not cancelled their subscription and have a `length.sub.ceiling` greater than 3 months, `r sum(lag.unique$sleep==1)` were classified as sleeping during some point in their subscription, where sleeping is defined as having a `max.lag` over 90 days.
+
+There are many reasons we want to identify and possibly prevent customers from sleeping. One is that customers who are sleeping may be more likely to cancel their subscription in the future if they are no longer actively using it. This relationship between sleeping and future cancellation would make for a great follow-up project, to better understand the losses associated with a customer converting to sleeping. On the other hand, non-sleeping customers who are actively using the service may be more likely to refer others, generating additional revenue. 
+
+As discussed in the methodology section, the selected model for classifying customers as sleeping is the simplified logistic regression with 5 selected predictor variables. This model tells us that users with a longer subscription have higher odds of sleeping at some point in their subscription. On average, sleeping customers tend to have longer subscription lengths, with a mean of `r round(mean(lag.unique$length.sub.ceiling[lag.unique$sleep==1]),0)` months compared to `r round(mean(lag.unique$length.sub.ceiling[lag.unique$sleep==0]),0)` compared to non-sleeping customers. 
+
+This model also indicates that users who visit the site more on a monthly basis, purchase more holiday cards, and complete an order in a higher proportion of their visits, have a lower odds of sleeping. Lastly, the model indicates that males have a lower likelihood of sleeping compared to women. It's worth reiterating here that most of the users are female, so this finding is perhaps less useful.
+
+Model selection was made primarily based on the misclassification rate and the sensitivity for each model. The simplified logistic regression had the second-highest sensitivity, but is also easier to interpret. The pruned model had the highest sensitivity, but was ruled out due the variance of classification trees. Additionally, the pruned tree resulted in a fairly complex model that is harder to reference as the basis of business decisions. 
+
+Below is a table comparing the misclassification rate and sensitivity for each of the 5 models tested in this objective:
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+sleep.model.table
+```
+
+The simplified logistic regression model tells us that users with a longer subscription have higher odds of sleeping at some point in their subscription. This is a logical finding - the longer a user's subscription, the more opportunity they have to sleep. With these findings, we should consider engaging users with longer subscriptions so that they don't become dormant. A similarly logical finding is that users who visit the site more on a monthly basis have a lower odds of sleeping. This suggests engaging customers who have fewer monthly visits and attempt to increase their regular traffic on the site. As users buy more holiday cards, the odds of sleeping decrease. This supports findings in exploratory data analysis that holiday cards drive site traffic and there is a cyclical pattern to orders throughout the year. Lastly, users who complete orders in more of their visits are less likely to become dormant. This suggests that implementing measures to encourage order completion on a visit may increase the activity of customers. We also want to consider how site usage varies with customers' demographics. In this dataset, we only have gender information, but there may be other important segments to consider. 
+
+Below is the table of coefficients from the simplified logistic regression for reference:
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#table of coefficients for the second logistic regression
+#for interpretation, coefficients on 'prop' variables are divided by 100
+kable(coef(summary(glm2)), digits = c(4, 5, 2, 4))
+```
+
+One of the key findings across the models for customer segmentation is that a small subset of variables are most important across each model. `avg.visits.month` and `length.sub.ceiling` are used in every split of the first classification tree and appear as the most impactful in random forest. The relationship between these two variables and sleeping is not surprising, but they do provide insights for targeting customers that have longer subscriptions and don't use the site as frequently in an effort to prevent them from sleeping.
+
+##### Implications and Limitation
+
+The logistic regression helps us understand the types of customers that are more likely to sleep during their subscription. With this information, we are able to propose the types of customers to target with promotions and discounts. Unlike the classification trees, however, it does not provide exact cutoffs (e.g., `length.sub.ceiling` > 20 months is more likely to sleep), which is one limitation of selecting this model. 
+
+Rather, the findings of this model suggest that ongoing monitoring of customers will help prevent them from sleeping. As the length of a user's subscription increases, we should target them with promotions and discounts on a regular basis to maintain their activity on the site. Similarly, we should engage customers who have a low or decreasing number of average monthly visits.
+
+The `avg.visits.month` variable was included in the models because it was plausible that customers could have extremely high traffic in some months and then go dormant, but they would still have a reasonable `avg.visits.month`. The findings of the model validate that users who visit the site more on average are generally less likely to be sleeping. However, there is further exploration that can be done into the cyclical usage and purchasing habits of various groups of customers. We saw these trends when aggregated across all users, active and cancelled, but there may be variation when considering customers who remain consistently active, as opposed to sleeping or cancelling their subscription all together.
+
+One limitation of these models is that most variables relate to a customer's visit and purchasing habits. We only had one demographic variable, `gender`, which was used in the model of choice. This suggests that outside of behavioral predictors, there may be relevant demographic variables to consider. Demographics are particularly important for increasing holiday card purchases - it's possible that we should expand the holiday card offerings to cover a wider range of holidays.
+
+Additionally, many of the variables were binary flags, indicating if a customer completed an order, for example. As proportions, these variables were used across the models and often played a significant role in classifying customers. However, additional volume data may impact the findings of the models. For example, knowing how many cards a user ordered in each session may create more segments of customers based on those who purchase at high vs. low volumes.
+
+
+### References
+
+* 95791 S21 A3 Course Materials
+
+* Gareth James, Daniela Witten, Trevor Hastie, and Robert Tibshirani. _An Introduction to Statistical Learning with Applications in R_. Springer, 2013.
+
+* "Markdown Basics," RStudio, https://rmarkdown.rstudio.com/authoring_basics.html.
+
+* "Tools for Summarizing and Visualizing Regression Models," https://cran.r-project.org/web/packages/jtools/vignettes/summ.html#plot_summs_and_plot_coefs
